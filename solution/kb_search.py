@@ -503,6 +503,9 @@ FILLER = frozenset(tokens("now currently current today presently right said say 
 KIND_WORDS = {"a link": frozenset(tokens("link links url urls website web page site online address")),
               "that number": frozenset(tokens("number count total"))}
 AMOUNT_WORDS = frozenset(tokens("fee fees cost costs charge charges price prices much pay amount"))
+# "has the number of branches CHANGED?" asks about time, not about sentences that contain "changed"
+CHANGE_ASKED = re.compile(r"\b(changed|previous(ly)?|used to|increased|decreased|raised|lowered|dropped)\b", re.I)
+CHANGE_WORDS = frozenset(tokens("changed change previous previously used increased decreased raised lowered dropped"))
 # A call to action ("For more information ... visit ...", "Learn more") points elsewhere instead of answering
 CTA = re.compile(r"^\W*(for more (information|details)|to learn more|learn more|click here|find out more|visit\b|"
                  r"apply (now|today|online)|contact us|call us|get started)", re.I)
@@ -517,6 +520,8 @@ def search(view, question: str, idf: dict, today: date, defs: Optional[dict] = N
     if re.search(r"\b(address|located|location|where|hours|open)\b", question, re.I):
         question = re.sub(r"\boffice\b", "branch", question, flags=re.I)    # "the Galena office" is a branch
     q = set(tokens(question)) - FILLER
+    if CHANGE_ASKED.search(question):
+        q = (q - CHANGE_WORDS) or q
     kind, pattern = answer_kind(question)
     q = (q - KIND_WORDS.get(kind, frozenset())) or q
     if not q:

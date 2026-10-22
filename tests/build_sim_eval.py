@@ -194,6 +194,9 @@ CHANGED = [
     ("What was the previous 12-month certificate rate?", ["2.90%"], []),
     ("Did the 30-year fixed mortgage rate for a $100,000 loan go up recently?", ["7.13%", "6.375%"], []),
     ("Has the Bright Savings APY changed?", ["2.25%"], []),
+    ("Has the Dupaco Foundation hardship grant amount changed?", ["$3,500", "$2,000"], []),
+    ("Has the minimum cash back redemption on the Rewards Visa changed?", ["$25.00", "$50.00"], []),
+    ("Has the number of Dupaco branches changed?", ["22 branch"], ["23 full-service", "24 branch"]),
 ]
 REFUSALS = [
     "What is the rate on a 10/1 ARM?", "What's the APY on a 9-month certificate?", "What is the rate on a 60-month jumbo certificate?",

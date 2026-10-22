@@ -43,6 +43,12 @@ CHANGE_QUESTION = re.compile(r"\b(chang\w*|previous(ly)?|prior|used to|before( t
                              r"increas\w*|decreas\w*|rais\w*|lower(ed)?|drop\w*|old rate|last time)\b", re.I)
 
 
+# stricter for text answers, where "how do I change my address?" is not about a change on the site
+CHANGED_FACT = re.compile(r"\b(changed|previous(ly)?|used to|went (up|down)|gone (up|down)|increased|decreased|"
+                          r"raised|lowered|dropped)\b", re.I)
+KEY_VALUE = re.compile(r"\$\s?\d[\d,]*(?:\.\d+)?|\b\d+(?:\.\d+)?%|\b\d[\d,]{2,}\b")
+
+
 def date_in_question(question: str) -> Optional[str]:
     """'What was the 12-month certificate APY in May 2026?' -> '2026-05-31' (a month means its last day,
     as the site stood by then); 'as of May 12, 2026' -> '2026-05-12'. Used only when no as_of is passed."""
@@ -137,7 +143,24 @@ class KnowledgeBase:
         sources += [Source(url=d.url, snapshot_id=observed_in(view, d)) for d in hit.also]   # pages saying the same
         published = hit.doc.published if hit.doc else None
         text = hit.text + (self.coverage_note(asked, published=published) if hit.confident else "")
+        if hit.confident and CHANGED_FACT.search(question):
+            text += self.previous_text(view, question, hit.quote)
         return Answer(text=text, sources=sources, confident=hit.confident)
+
+    def previous_text(self, view, question: str, quote: str) -> str:
+        """'Has the hardship grant amount changed?': the newest earlier download whose answer sentence gives
+        other figures, labelled as the past. Nothing when the figures are the same or there are none."""
+        vals = lambda t: set(KEY_VALUE.findall(t or ""))
+        now = vals(quote)
+        if not now:
+            return ""
+        for prev in reversed([s for s in self.snaps if s.taken_on < view.taken_on]):
+            old = search(prev, question, self.idf[prev.snapshot_id], date.fromisoformat(prev.taken_on),
+                         self.defs[prev.snapshot_id])
+            if old is not None and old.confident and vals(old.quote) and vals(old.quote) != now:
+                day = date.fromisoformat(prev.taken_on)
+                return f"\nBefore that (the website as of {day:%B} {day.day}, {day.year}): {old.quote}"
+        return ""
 
     def previous_rates(self, view, question: str, current: str) -> str:
         """Only when the question asks about a change: the newest earlier download whose answer differs,

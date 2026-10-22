@@ -39,7 +39,7 @@
 
 - The answer comes from the latest snapshot taken on or before the date.
 - A date written only in the question ("... as of May 2026?", "in June 2026", "on May 12, 2026") is used the same way when no `as_of` is passed. A month means its last day.
-- A question about the change itself ("Has the 10-month jumbo rate changed?", "What was the previous 12-month rate?") gets the current rate, then "Before that (the website as of August 27, 2026): ...", taken from the newest earlier download whose numbers differ. Ordinary questions never show old numbers.
+- A question about the change itself ("Has the 10-month jumbo rate changed?", "What was the previous 12-month rate?") gets the current rate, then "Before that (the website as of August 27, 2026): ...", taken from the newest earlier download whose numbers differ. The same works for other facts ("Has the hardship grant amount changed?" → $3,500, before that $2,000), triggered only by "changed", "previously", "used to", "increased" and the like, so "How do I change my address?" is not affected. Ordinary questions never show old numbers.
 - For a date **before the first download (2026-05-12)**, the system still answers from the earliest copy, but:
   - News published after that date is ignored.
   - A plain note follows. For rates: "these rates took effect by X, before the date you asked about, so they applied then too", or "these rates took effect after that date, so I don't know what applied then".
@@ -100,17 +100,17 @@ On `eval/public_eval.jsonl`:
 - The only miss is `dup-005`, which has no `must_include` and can't be scored without the LLM judge, so 0.969 is the most this file allows without it. (The answer does read back every certificate rate, as its reference answer asks.)
 - The public file has no conflict gold, so this score doesn't measure `conflicts()`. Every paraphrase group in it has a single question, so its consistency score only tests asking the same question twice.
 
-On `tests/sim_eval.jsonl`, a stand-in for the hidden set built by `tests/build_sim_eval.py` (287 questions, same format and scorer):
+On `tests/sim_eval.jsonl`, a stand-in for the hidden set built by `tests/build_sim_eval.py` (290 questions, same format and scorer):
 
 - every public question with five rewordings (plain and messy: lower case, abbreviations, chatty context) in its group;
 - "as of" questions on rate-sheet rows that changed, expected values read off /rates in each download, with the date passed as `as_of` or written only in the question;
 - current values of facts that changed, questions about the change itself, and extra refusals.
-- **0.962** (accuracy 0.966, consistency 0.942). The three misses are open questions with no answer shape ("What has Forbes said about Dupaco?", "Does Dupaco support mobile wallets?", "VTO usage last year?").
+- **0.963** (accuracy 0.967, consistency 0.943). The three misses are open questions with no answer shape ("What has Forbes said about Dupaco?", "Does Dupaco support mobile wallets?", "VTO usage last year?").
 
 `python tests/run_checks.py` covers what the public eval doesn't:
 
 - **59 reworded questions** on the public topics. Set B (30) was written fresh and passed 27/30 on its first run; the three misses were then fixed, so it is no longer an untouched test.
-- **31 review and later cases**: rate vs APY vs APR, minimums, loan kinds the tables don't list, yes/no polarity, missing years, source snapshot ids, unlisted fees, a product only a stale page still shows, change questions, dates written in the question and reworded boilerplate (assets, counties).
+- **33 review and later cases**: rate vs APY vs APR, minimums, loan kinds the tables don't list, yes/no polarity, missing years, source snapshot ids, unlisted fees, a product only a stale page still shows, change questions, dates written in the question and reworded boilerplate (assets, counties).
 - **Synthetic snapshots** for cases the real data doesn't have: a term dropped from the newest table, a fee that changed.
 
 ## Developer tool

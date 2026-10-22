@@ -120,6 +120,9 @@ REVIEW = [
     # reworded boilerplate: the newest wording carries the current figures
     ("What are Dupaco's total assets?", None, lambda a: "3.6 billion" in a.text and "2.6 billion" not in a.text, "$3.6 billion"),
     ("How many counties does Dupaco serve?", None, lambda a: "118 counties" in a.text, "118 counties"),
+    ("Has the Dupaco Foundation hardship grant amount changed?", None,
+     lambda a: "$3,500" in a.text and "Before that" in a.text and "$2,000" in a.text, "$3,500 now, $2,000 before"),
+    ("How do I change my address with Dupaco?", None, lambda a: "Before that" not in a.text, "no change history for 'change my address'"),
 ]
 
 
