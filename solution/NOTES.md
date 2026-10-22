@@ -2,7 +2,8 @@
 
 ## Requirements
 
-- Python 3.9+, **standard library only**. No API keys, no network calls, no LLM.
+- Python 3.9+ (tested on 3.11), **standard library only**. No API keys, no network calls, no LLM.
+- `answer()` accepts `as_of` as an ISO date or datetime, "2026-05", "May 2026" or "05/31/2026"; an unreadable date means the latest download. An unexpected error is answered with "I don't know" instead of crashing.
 - Ingesting the 5 snapshots takes about 12 s. Answers take about 0.1 s at p95.
 
 ## Pipeline
@@ -100,12 +101,12 @@ On `eval/public_eval.jsonl`:
 - The only miss is `dup-005`, which has no `must_include` and can't be scored without the LLM judge, so 0.969 is the most this file allows without it. (The answer does read back every certificate rate, as its reference answer asks.)
 - The public file has no conflict gold, so this score doesn't measure `conflicts()`. Every paraphrase group in it has a single question, so its consistency score only tests asking the same question twice.
 
-On `tests/sim_eval.jsonl`, a stand-in for the hidden set built by `tests/build_sim_eval.py` (290 questions, same format and scorer):
+On `tests/sim_eval.jsonl`, a stand-in for the hidden set built by `tests/build_sim_eval.py` (330 questions, same format and scorer):
 
-- every public question with five rewordings (plain and messy: lower case, abbreviations, chatty context) in its group;
+- every public question with six rewordings (plain; messy: lower case, abbreviations, chatty context; and the public set's own command style) in its group;
 - "as of" questions on rate-sheet rows that changed, expected values read off /rates in each download, with the date passed as `as_of` or written only in the question;
 - current values of facts that changed, questions about the change itself, and extra refusals.
-- **0.963** (accuracy 0.967, consistency 0.943). The three misses are open questions with no answer shape ("What has Forbes said about Dupaco?", "Does Dupaco support mobile wallets?", "VTO usage last year?").
+- **0.961** (accuracy 0.966, consistency 0.941). The four misses are open questions with no answer shape ("What has Forbes said about Dupaco?", "Does Dupaco support mobile wallets?", "Tell me which mobile wallets I can add my Dupaco card to.", "VTO usage last year?").
 
 `python tests/run_checks.py` covers what the public eval doesn't:
 

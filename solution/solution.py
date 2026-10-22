@@ -68,6 +68,23 @@ def date_in_question(question: str) -> Optional[str]:
         return None
 
 
+def normalize_as_of(as_of) -> Optional[str]:
+    """as_of as an ISO date: '2026-05-31', a date/datetime, '2026-05-31T00:00:00Z', '2026-05' (end of month),
+    'May 2026', '05/31/2026'. Anything unreadable means no date (answer from the latest download), never a crash."""
+    if not as_of:
+        return None
+    s = str(as_of).strip()
+    try:
+        return date.fromisoformat(s[:10]).isoformat()
+    except ValueError:
+        pass
+    m = re.fullmatch(r"(20\d\d)-(\d{1,2})", s)
+    if m and 1 <= int(m.group(2)) <= 12:
+        y, mo = int(m.group(1)), int(m.group(2))
+        return date(y, mo, calendar.monthrange(y, mo)[1]).isoformat()
+    return date_in_question("as of " + s)
+
+
 class KnowledgeBase:
     def __init__(self):
         self.snaps = []   # list[SnapView], oldest first
@@ -119,7 +136,14 @@ class KnowledgeBase:
 
     # ------------------------------------------------------------ answer
     def answer(self, question: str, as_of: Optional[str] = None) -> Answer:
-        as_of = as_of or date_in_question(question)     # "... as of May 2026?" with no as_of passed
+        try:
+            return self._answer(question or "", as_of)
+        except Exception:      # an unforeseen input must not crash the member's chat: decline instead
+            return Answer(text="I don't know. Please contact Dupaco or visit https://www.dupaco.com/contact.",
+                          confident=False)   # no numbers in a refusal
+
+    def _answer(self, question: str, as_of: Optional[str] = None) -> Answer:
+        as_of = normalize_as_of(as_of) or date_in_question(question)   # "... as of May 2026?" written in the text
         view = self.view(as_of)
         asked = date.fromisoformat(str(as_of)[:10]) if as_of else None
         rate = answer_rate_question(view, question)   # step 2c: rate questions are answered from RateRows

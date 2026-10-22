@@ -144,6 +144,50 @@ REWORDS2 = {
     "dup-082": ["join online?", "Is there a website to apply for membership?"],
 }
 
+# a third batch in the public set's own styles: commands, "I would like to know", polite and compound requests
+REWORDS3 = {
+    "dup-001": ["Provide the APY for the 17-month special certificate."],
+    "dup-009": ["I would like to know the interest rate on a 30 year mortgage."],
+    "dup-011": ["Please list your current mortgage rates."],
+    "dup-016": ["Give me the APR on a 60 month loan for a 2025 model year auto."],
+    "dup-034": ["Provide a list of your credit cards and the APR on each."],
+    "dup-045": ["Get me the Share Savings dividend rate for balances from $10,000 to $24,999."],
+    "dup-054": ["Provide Dupaco's routing number."],
+    "dup-064": ["I would like to know your lobby hours."],
+    "dup-066": ["Please tell me the drive-up hours."],
+    "dup-068": ["Give me the address for the Galena branch."],
+    "dup-073": ["Tell me how many branches Dupaco has."],
+    "dup-075": ["Please confirm whether the Hy-Vee branch is still open in October 2026."],
+    "dup-087": ["Tell me about Dupaco's Forbes recognition."],
+    "dup-008": ["Provide the link to the certificate rates page."],
+    "dup-052": ["I would like to know the interest rates on your checking accounts."],
+    "dup-035": ["Get me the standard purchase APR for the Platinum Visa."],
+    "dup-145": ["Provide the 7/1 ARM mortgage rate."],
+    "dup-065": ["Please give me the lobby hours."],
+    "dup-074": ["Tell me when the Hy-Vee branch closes."],
+    "dup-050": ["Provide the current rate on the Bright Savings account."],
+    "dup-040": ["Get me the credit card rates."],
+    "dup-080": ["Provide the URL of the branch and ATM locator."],
+    "dup-049": ["I would like to know if any savings tier pays 0.35% APY."],
+    "dup-031": ["Explain the Home$tart program."],
+    "dup-028": ["Get me the APR for a personal loan with a 36-month term."],
+    "dup-147": ["Provide your construction loan interest rate."],
+    "dup-076": ["Tell me where Hy-Vee branch members can get full-service banking."],
+    "dup-006": ["Get me the 10-month fixed jumbo special certificate rate as of May 2026."],
+    "dup-055": ["Please repeat Dupaco's routing number."],
+    "dup-005": ["Get me the certificate rates."],
+    "dup-017": ["Give me the APR on an 84 month loan for a 2024 model year auto."],
+    "dup-081": ["Tell me who is eligible to join Dupaco."],
+    "dup-060": ["Tell me how to update my contact information."],
+    "dup-046": ["Provide the highest APY on Share Savings."],
+    "dup-102": ["Provide the lobby hours for the Mullan Avenue branch."],
+    "dup-104": ["Tell me whether all branches have the same lobby hours."],
+    "dup-088": ["Tell me how many employees used Volunteer Time Off last year."],
+    "dup-101": ["I'm starting college soon. Do you have student loans with flexible repayment?"],
+    "dup-094": ["Tell me which mobile wallets I can add my Dupaco card to."],
+    "dup-082": ["Provide the link to join Dupaco online."],
+}
+
 # "as of" questions on rate-sheet rows that changed: (question, as_of, must_include, must_not_include)
 AS_OF = [
     ("What was the 10-month fixed jumbo special certificate APY?", "2026-05-15", ["3.90%"], ["4.00%"]),
@@ -210,7 +254,7 @@ def main():
     out = []
     for p in public:
         out.append(dict(p, group=p["id"]))
-        for k, q in enumerate(REWORDS[p["id"]] + REWORDS2[p["id"]], 1):
+        for k, q in enumerate(REWORDS[p["id"]] + REWORDS2[p["id"]] + REWORDS3[p["id"]], 1):
             out.append(dict(p, id=f"{p['id']}-r{k}", question=q, group=p["id"], expected_sources=p["expected_sources"]))
     for k, (q, as_of, must, must_not) in enumerate(AS_OF, 1):
         out.append({"id": f"asof-{k:02d}", "question": q, "as_of": as_of, "expected_answer": " / ".join(must),
