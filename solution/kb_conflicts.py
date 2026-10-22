@@ -53,9 +53,14 @@ class Found:
 
 # ---------------------------------------------------------------- 1. rate conflicts
 
+def _num_value(v: str) -> tuple:
+    """'20.5%' and '20.50%' are the same number; '12.50% – 19.50%' -> (12.5, 19.5)."""
+    return tuple(float(x) for x in re.findall(r"\d+(?:\.\d+)?", v))
+
+
 def _common_differs(a: dict, b: dict) -> bool:
     shared = set(a) & set(b)
-    return bool(shared) and any(a[k] != b[k] for k in shared)
+    return bool(shared) and any(_num_value(a[k]) != _num_value(b[k]) for k in shared)
 
 
 def _same_slot(r1, r2) -> bool:
@@ -82,7 +87,7 @@ def _topic(r) -> str:
 
 
 def _fact(r):
-    return (r.tier_lo, r.tier_hi, r.years, tuple(sorted(r.rates.items())))
+    return (r.tier_lo, r.tier_hi, r.years, tuple(sorted((k, _num_value(v)) for k, v in r.rates.items())))
 
 
 def _tier_label(r) -> str:

@@ -85,7 +85,7 @@ Otherwise the system answers with what the site says. Refusals contain no number
   - The same change printed on twin products (personal, business, Roth, Traditional) is merged into one conflict.
 - **Text:** boilerplate repeated on 3+ pages whose numbers changed (branches 24 → 23 → 22; counties 108 → 112 → 118), one conflict per statement, plus running counts ("fourth" → "fifth time Forbes recognized Dupaco"). One-off yearly figures describe different years and are left out.
 - **Page changes:** an undated page (product page, PDF) that changed a dollar figure between downloads: hardship grants "up to $2,000" → "$3,500" (two pages, one conflict), Rewards Visa minimum cash-back redemption $50.00 → $25.00. Calculators, rate-bearing paragraphs (payment examples) and sentences used twice on one page with different figures are skipped.
-- The list is ordered most specific first. It has 36 conflicts on the provided snapshots.
+- The list is ordered most specific first. It has 35 conflicts on the provided snapshots. Rates are compared as numbers, so "20.5%" and "20.50%" are the same value, not a conflict.
 
 ## Known limitations
 
