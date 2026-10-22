@@ -184,6 +184,9 @@ CURRENT = [
     ("What is the 20-year fixed mortgage rate?", ["7.13%"], ["6.250%", "6.375%"]),
     ("What is the HELOC rate?", ["6.25%"], []),
     ("What's the APY on a $500,000 High-Yield Savings balance?", ["2.25%"], []),
+    ("What are Dupaco's total assets?", ["3.6 billion"], ["2.6 billion"]),
+    ("How many counties does Dupaco serve?", ["118 counties"], ["108 counties", "112 counties"]),
+    ("How many members does Dupaco have?", ["179,000"], ["141,000"]),
 ]
 # questions about the change itself: the current value first, then the previous one, labelled as past
 CHANGED = [

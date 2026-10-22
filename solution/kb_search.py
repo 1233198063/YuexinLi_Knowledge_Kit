@@ -99,6 +99,8 @@ def answer_kind(question: str) -> tuple[str, Optional[re.Pattern]]:
             return "that number", re.compile(rf"{count}\s+[A-Za-z]")    # "how many people used VTO?" -> "294 employees"
         if words:   # "how many branches": "22 branch office locations" or "membership has grown to more than 179,000"
             noun = re.escape(stem(words[0]))
+            if noun.endswith("y"):
+                noun = noun[:-1] + "(?:y|ies)"     # the stem "county" must still match "118 counties"
             return "that number", re.compile(rf"{count}\s+(?:[\w’'-]+\s+){{0,3}}{noun}|\b{noun}\w*\s+(?:[\w’'-]+\s+)"
                                              rf"{{0,5}}(?:more than|over|nearly|about|approximately|almost|exceeding)\s+{count}", re.I)
     if re.search(r"\b(phone|telephone|call|contact)\b", ql) or \
@@ -361,6 +363,27 @@ def repeated_statement(near, cands):
     return best if support >= REPEATED else None
 
 
+def newer_wording(rep, cands):
+    """Boilerplate gets reworded over the years: 'membership totals more than 141,000 with assets exceeding
+    $2.6 billion' (2020-23 releases) became 'membership has grown to more than 179,000 with assets exceeding
+    $3.6 billion'. If another repeated statement (3+ pages) about the same thing (shares at least a third of the
+    words) has a newer copy, that wording is the current one."""
+    newest = lambda group: max(x[1].published or date.min for x in group)
+    sig = signature(rep[0][2].sents[rep[0][3]][1])
+    pool = [c for c in cands if c[1].published and re.search(r"\d", c[2].sents[c[3]][0])]
+    sigs = {id(c): signature(c[2].sents[c[3]][1]) for c in pool}
+    related = [c for c in pool if sigs[id(c)] and len(sig & sigs[id(c)]) / len(sig | sigs[id(c)]) >= 0.3]
+    best, best_date = rep, newest(rep)
+    for c in sorted(related, key=lambda c: c[1].published, reverse=True)[:20]:
+        if c[1].published <= best_date:
+            break
+        group = [x for x in related if same_statement(sigs[id(c)], sigs[id(x)])]
+        if len({x[1].key for x in group}) >= REPEATED:
+            best, best_date = group, newest(group)
+            break
+    return best
+
+
 def earlier_years(sent, doc, cands) -> str:
     """Year-labelled statistics are history, not conflicts (user decision, 2026-10-18):
     '256 employees used VTO in 2024' is answered together with '294 ... in 2023'."""
@@ -578,6 +601,7 @@ def search(view, question: str, idf: dict, today: date, defs: Optional[dict] = N
     #    mention; among its copies the newest publish date wins (user decision, 2026-10-18)
     rep = repeated_statement(near, cands)
     if rep:
+        rep = newer_wording(rep, cands)
         doc = max(rep, key=lambda c: (c[1].published or date.min, c[1].authority, c[0], c[1].key))[1]
     else:
         # 1) which page answers: near-ties settled by trust, then publish date

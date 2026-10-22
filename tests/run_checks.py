@@ -117,6 +117,9 @@ REVIEW = [
      lambda a: "4.00%" in a.text and "Before that" in a.text and "3.90%" in a.text, "4.00% now, 3.90% before"),
     ("What was the 12-month certificate APY in May 2026?", None, lambda a: "2.90%" in a.text and "3.40%" not in a.text, "2.90%"),
     ("What is the 12-month certificate APY?", None, lambda a: "3.40%" in a.text and "2.90%" not in a.text, "3.40% only"),
+    # reworded boilerplate: the newest wording carries the current figures
+    ("What are Dupaco's total assets?", None, lambda a: "3.6 billion" in a.text and "2.6 billion" not in a.text, "$3.6 billion"),
+    ("How many counties does Dupaco serve?", None, lambda a: "118 counties" in a.text, "118 counties"),
 ]
 
 

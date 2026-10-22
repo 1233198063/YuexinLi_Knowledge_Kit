@@ -20,7 +20,7 @@
 
 1. **Rate tables: the newest "effective as of" date wins.** A table with no date counts as the oldest.
 2. **Then page trust:** rate sheet (1.0) > product page (0.9) > PDF document (0.7) > news (0.55) > campaign landing page (0.45) > blog (0.4) > calculator (0.3) > tag/listing page (0.1).
-3. **Facts that only appear in news: the newest publish date wins.** A statement the site repeats on 3+ pages (press-release boilerplate) beats a one-off mention, and its newest copy answers. For example, "22 branch office locations" from the newest releases beats an old executive bio on /about that says "18 branches".
+3. **Facts that only appear in news: the newest publish date wins.** A statement the site repeats on 3+ pages (press-release boilerplate) beats a one-off mention, and its newest copy answers. For example, "22 branch office locations" from the newest releases beats an old executive bio on /about that says "18 branches". Boilerplate also gets reworded over the years; when a reworded repeated statement about the same thing has newer copies, the newer wording wins ("membership totals more than 141,000 with assets exceeding $2.6 billion" → "has grown to more than 179,000 with assets exceeding $3.6 billion").
 4. **Expired pages ("This Offer Has Expired") are never used.**
 5. **Products compete as whole tables.** If the newest table no longer lists a tier, an older page that still lists it does not get to answer.
 6. **Statistics labelled with a year are history, not contradictions.** The answer gives the newest year and the earlier years: "256 employees used VTO in 2024 (294 in 2023)".
@@ -100,7 +100,7 @@ On `eval/public_eval.jsonl`:
 - The only miss is `dup-005`, which has no `must_include` and can't be scored without the LLM judge, so 0.969 is the most this file allows without it. (The answer does read back every certificate rate, as its reference answer asks.)
 - The public file has no conflict gold, so this score doesn't measure `conflicts()`. Every paraphrase group in it has a single question, so its consistency score only tests asking the same question twice.
 
-On `tests/sim_eval.jsonl`, a stand-in for the hidden set built by `tests/build_sim_eval.py` (284 questions, same format and scorer):
+On `tests/sim_eval.jsonl`, a stand-in for the hidden set built by `tests/build_sim_eval.py` (287 questions, same format and scorer):
 
 - every public question with five rewordings (plain and messy: lower case, abbreviations, chatty context) in its group;
 - "as of" questions on rate-sheet rows that changed, expected values read off /rates in each download, with the date passed as `as_of` or written only in the question;
@@ -110,7 +110,7 @@ On `tests/sim_eval.jsonl`, a stand-in for the hidden set built by `tests/build_s
 `python tests/run_checks.py` covers what the public eval doesn't:
 
 - **59 reworded questions** on the public topics. Set B (30) was written fresh and passed 27/30 on its first run; the three misses were then fixed, so it is no longer an untouched test.
-- **29 review and later cases**: rate vs APY vs APR, minimums, loan kinds the tables don't list, yes/no polarity, missing years, source snapshot ids, unlisted fees, a product only a stale page still shows, change questions and dates written in the question.
+- **31 review and later cases**: rate vs APY vs APR, minimums, loan kinds the tables don't list, yes/no polarity, missing years, source snapshot ids, unlisted fees, a product only a stale page still shows, change questions, dates written in the question and reworded boilerplate (assets, counties).
 - **Synthetic snapshots** for cases the real data doesn't have: a term dropped from the newest table, a fee that changed.
 
 ## Developer tool
