@@ -10,6 +10,8 @@ See NOTES.md for the rules on what counts as "current".
 Note: the harness loads this file without registering it in sys.modules, which breaks @dataclass here.
 Keep dataclasses in the kb_* modules (normal imports) and only plain classes in this file.
 """
+import calendar
+import re
 import sys
 from datetime import date
 from pathlib import Path
@@ -24,9 +26,40 @@ except ImportError:  # running outside the harness: find harness/contract.py in 
     from contract import Answer, Conflict, Snapshot, Source  # noqa: E402
 
 from kb_conflicts import find_conflicts  # noqa: E402
-from kb_pages import SnapView, index_doc, make_doc  # noqa: E402
+from kb_pages import SnapView, index_doc, make_doc, observed_in  # noqa: E402
 from kb_rate_qa import answer_rate_question  # noqa: E402
 from kb_search import build_definitions, build_idf, search  # noqa: E402
+
+
+MONTHS = {m: i for i, m in enumerate("jan feb mar apr may jun jul aug sep oct nov dec".split(), 1)}
+DATE_IN_QUESTION = re.compile(
+    r"\b(?:as of|in|on|during|by|back in|around|at the end of)\s+"
+    r"(?:(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(?:(\d{1,2})(?:st|nd|rd|th)?,?\s+)?(20\d\d)\b"
+    r"|(\d{1,2})/(\d{1,2})/(20\d\d)\b|(20\d\d)-(\d\d)-(\d\d)\b)", re.I)
+
+
+# "Has the 10-month jumbo rate changed?", "What was the previous 12-month certificate rate?"
+CHANGE_QUESTION = re.compile(r"\b(chang\w*|previous(ly)?|prior|used to|before( that| it)?|went (up|down)|go(ne)? (up|down)|"
+                             r"increas\w*|decreas\w*|rais\w*|lower(ed)?|drop\w*|old rate|last time)\b", re.I)
+
+
+def date_in_question(question: str) -> Optional[str]:
+    """'What was the 12-month certificate APY in May 2026?' -> '2026-05-31' (a month means its last day,
+    as the site stood by then); 'as of May 12, 2026' -> '2026-05-12'. Used only when no as_of is passed."""
+    m = DATE_IN_QUESTION.search(question)
+    if not m:
+        return None
+    try:
+        if m.group(1):
+            y, mo = int(m.group(3)), MONTHS[m.group(1).lower()[:3]]
+            d = int(m.group(2)) if m.group(2) else calendar.monthrange(y, mo)[1]
+        elif m.group(4):
+            mo, d, y = int(m.group(4)), int(m.group(5)), int(m.group(6))
+        else:
+            y, mo, d = int(m.group(7)), int(m.group(8)), int(m.group(9))
+        return date(y, mo, d).isoformat()
+    except ValueError:
+        return None
 
 
 class KnowledgeBase:
@@ -80,6 +113,7 @@ class KnowledgeBase:
 
     # ------------------------------------------------------------ answer
     def answer(self, question: str, as_of: Optional[str] = None) -> Answer:
+        as_of = as_of or date_in_question(question)     # "... as of May 2026?" with no as_of passed
         view = self.view(as_of)
         asked = date.fromisoformat(str(as_of)[:10]) if as_of else None
         rate = answer_rate_question(view, question)   # step 2c: rate questions are answered from RateRows
@@ -87,9 +121,11 @@ class KnowledgeBase:
             text = rate.text
             if rate.confident:
                 text += self.coverage_note(asked, rate.effective)
+                if CHANGE_QUESTION.search(question):
+                    text += self.previous_rates(view, question, rate.text)
             return Answer(
                 text=text, confident=rate.confident, conflict_note=rate.note,
-                sources=[Source(url=u, snapshot_id=view.snapshot_id, quote=q) for u, q in rate.sources],
+                sources=[Source(url=u, snapshot_id=s, quote=q) for u, q, s in rate.sources],
             )
         # step 3: everything else is answered with the sentence that holds the fact
         today = asked or date.fromisoformat(view.taken_on)    # "is it still open?" is judged on this day
@@ -97,10 +133,24 @@ class KnowledgeBase:
         hit = search(view, question, self.idf[view.snapshot_id], today, self.defs[view.snapshot_id], before_first)
         if hit is None:
             return Answer(text="I don't know.", confident=False)
-        sources = [Source(url=hit.doc.url, snapshot_id=view.snapshot_id, quote=hit.quote)] if hit.doc else []
+        sources = [Source(url=hit.doc.url, snapshot_id=observed_in(view, hit.doc), quote=hit.quote)] if hit.doc else []
+        sources += [Source(url=d.url, snapshot_id=observed_in(view, d)) for d in hit.also]   # pages saying the same
         published = hit.doc.published if hit.doc else None
         text = hit.text + (self.coverage_note(asked, published=published) if hit.confident else "")
         return Answer(text=text, sources=sources, confident=hit.confident)
+
+    def previous_rates(self, view, question: str, current: str) -> str:
+        """Only when the question asks about a change: the newest earlier download whose answer differs,
+        labelled as the past. Never in an ordinary answer, where an old number is the classic wrong answer."""
+        body = lambda t: "\n".join(l for l in t.split("\n") if not l.startswith("Source:"))
+        pcts = lambda t: sorted(set(re.findall(r"\d+(?:\.\d+)?%", body(t))))   # a relabelled table is no change
+        for prev in reversed([s for s in self.snaps if s.taken_on < view.taken_on]):
+            old = answer_rate_question(prev, question)
+            if old is not None and old.confident and pcts(old.text) != pcts(current):
+                day = date.fromisoformat(prev.taken_on)
+                return (f"\nBefore that (the website as of {day:%B} {day.day}, {day.year}): "
+                        + " ".join(body(old.text).split("\n")))
+        return "\nThe earlier copies of the website show the same rates."
 
     def coverage_note(self, asked: Optional[date], effective: Optional[list] = None,
                       published: Optional[date] = None) -> str:

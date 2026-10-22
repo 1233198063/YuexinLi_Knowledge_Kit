@@ -33,7 +33,7 @@ from datetime import date
 from typing import Optional
 
 from kb_chunks import STOP, WORD, stem, tokens
-from kb_pages import parse_long_date
+from kb_pages import canonical_url, parse_long_date
 
 # ---------------------------------------------------------------- what kind of answer the question needs
 
@@ -49,15 +49,38 @@ MONEY = re.compile(r"\$\s?\d")
 ROUTING = re.compile(r"\b\d{9}\b")
 # a rate value is printed like a rate ("6.25%", "5% APR"); "adjust up to 2%" or "80% of costs" is not one
 RATE_VALUE = re.compile(r"\b\d{1,2}\.\d{1,3}\s*%|\b\d{1,2}(?:\.\d+)?\s*%\s*(?:APR|APY|annual percentage)", re.I)
-RATE_WORDS = re.compile(r"\b(interest rates?|rates?|aprs?|apys?|dividend rates?|yields?)\b", re.I)
+RATE_WORDS = re.compile(r"\b(interest( rates?)?|rates?|aprs?|apys?|dividend rates?|yields?)\b", re.I)
+ORDINAL = r"(?:first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|\d+(?:st|nd|rd|th))"
+TIMES = re.compile(rf"\b{ORDINAL}\s+(?:[\w’'-]+\s+){{0,2}}times?\b|\b\d+\s+times\b|\b(?:once|twice)\b", re.I)
+WH_WORD = re.compile(r"\b(which|where|who|what|how)\b", re.I)
 STATUS = re.compile(r"\bstill\b.*\b(open|available|offered|operating|around|exist)|\b(closed|discontinued|shut down)\b"
                     r"|^\s*(is|are)\b.*\bopen\b", re.I)
-SCHEDULE_WORDS = re.compile(r"\b(hours?|time|monday|tuesday|wednesday|thursday|friday|saturday|sunday|weekends?)\b", re.I)
+CLOSED_ASKED = re.compile(r"\b(closed|closing|clos(e|es) down|shut|shutting|discontinued|no longer)\b", re.I)
+WH_QUESTION = re.compile(r"^\W*(when|what|where|which|how|why|who)\b", re.I)
+SCHEDULE_WORDS = re.compile(r"\b(hours?|time|(monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?|weekends?|weekdays?)\b", re.I)
+
+
+BRANCH_NAME = re.compile(r"\b((?:[A-Z][\w.'’-]+\s+(?:(?:and|or|&)\s+)?)+)(?:branch|branches|office|offices|location|locations)\b")
+NOT_BRANCH_NAMES = frozenset("the a an this that our your each every any all new nearest closest main other its their".split())
+
+
+class BranchNames:
+    """'Which branches serve Hy-Vee members?' needs a branch NAME ('Key West and Sycamore Street branches'),
+    other than the ones the question already contains ('Dupaco Hy-Vee branch' doesn't answer it)."""
+    def __init__(self, question_names):
+        self.skip = {n.lower() for n in question_names} | NOT_BRANCH_NAMES
+
+    def search(self, text: str):
+        for m in BRANCH_NAME.finditer(text):
+            if m.group(1).split()[-1].lower() not in self.skip:
+                return m
+        return None
 
 
 def is_status(question: str) -> bool:
-    """'Is the Hy-Vee branch still open?' (but not 'Is the lobby open on Saturday?', an hours question)."""
-    return bool(STATUS.search(question)) and not SCHEDULE_WORDS.search(question)
+    """'Is the Hy-Vee branch still open?' (but not 'Is the lobby open on Saturday?', an hours question,
+    nor 'After the Hy-Vee branch closed, which branches serve its members?', a which-question)."""
+    return bool(STATUS.search(question)) and not SCHEDULE_WORDS.search(question) and not WH_WORD.search(question)
 
 
 def answer_kind(question: str) -> tuple[str, Optional[re.Pattern]]:
@@ -65,13 +88,17 @@ def answer_kind(question: str) -> tuple[str, Optional[re.Pattern]]:
     ql = question.lower()
     if "routing" in ql:
         return "a routing number", ROUTING
+    if re.search(r"\bhow (many|often)\s+times\b|\bhow often\b", ql):
+        return "how many times", TIMES     # "how many times has Forbes recognized Dupaco?" -> "the fifth time"
     m = re.search(r"\bhow many\s+(.+)|\bnumber of\s+(.+)", ql)
     if m:
         words = [w for w in WORD.findall(m.group(1) or m.group(2)) if w not in STOP]
+        # a count is not a $ amount, a year or a duration ("over 18 years of age")
+        count = r"(?<![$\d.,])(?!(?:19|20)\d\d\b)\d[\d,]*\+?(?!\s*(?:years?|months?|days?|hours?|%|percent)\b)"
+        if words and words[0] in ("people", "persons", "individuals", "folks"):
+            return "that number", re.compile(rf"{count}\s+[A-Za-z]")    # "how many people used VTO?" -> "294 employees"
         if words:   # "how many branches": "22 branch office locations" or "membership has grown to more than 179,000"
             noun = re.escape(stem(words[0]))
-            # a count is not a $ amount, a year or a duration ("over 18 years of age")
-            count = r"(?<![$\d.,])(?!(?:19|20)\d\d\b)\d[\d,]*\+?(?!\s*(?:years?|months?|days?|hours?|%|percent)\b)"
             return "that number", re.compile(rf"{count}\s+(?:[\w’'-]+\s+){{0,3}}{noun}|\b{noun}\w*\s+(?:[\w’'-]+\s+)"
                                              rf"{{0,5}}(?:more than|over|nearly|about|approximately|almost|exceeding)\s+{count}", re.I)
     if re.search(r"\b(phone|telephone|call|contact)\b", ql) or \
@@ -81,10 +108,14 @@ def answer_kind(question: str) -> tuple[str, Optional[re.Pattern]]:
         return "a date", DATE  # "is the Hy-Vee branch still open today?" -> its closing date
     if re.search(r"\b(hours?|what time|open until|close at|closing time|opening time)\b", ql) or \
             (re.search(r"\b(when|open|close)\b", ql) and SCHEDULE_WORDS.search(ql)) or \
-            (re.search(r"\b(when|open|close)\b", ql) and re.search(r"\b(lobby|drive[- ]?(up|thru|through))\b", ql)):
+            (re.search(r"\b(when|open|close)\b", ql) and re.search(r"\b(lobby|lobbies|drive[- ]?(up|thru|through))\b", ql)):
         return "hours", TIME   # "when is the lobby open?" asks for hours; "when does the Hy-Vee branch close?" for a date
     if re.search(r"\b(when|what date|which date|what day)\b", ql) or is_status(ql):
         return "a date", DATE
+    if re.search(r"\bwhich (branch|branches|location|locations|office|offices)\b", ql) or \
+            (re.search(r"\bwhere (do|should|can|could) (i|we|members?|they) (go|bank)\b", ql)
+             and not re.search(r"\bonline\b|\bgo to (join|apply|open|sign|enroll|find|see|check)", ql)):
+        return "a branch", None    # the pattern is built in search(): a branch name the question doesn't contain
     if re.search(r"\b(link|url|web ?address|website|web ?page)\b", ql) or \
             re.search(r"\b(join|apply|sign up|open|enroll|register)\b.*\bonline\b", ql):
         return "a link", URL
@@ -101,6 +132,11 @@ def answer_kind(question: str) -> tuple[str, Optional[re.Pattern]]:
 
 NOT_NAMES = frozenset("""dupaco i visa january february march april may june july august september october november
 december monday tuesday wednesday thursday friday saturday sunday""".split())
+# words that start a question: a capitalised first word is a name only if it isn't one of these ("Mullan Avenue ...?")
+STARTERS = frozenset("""what how is are can could do does did when where who whom whose which why will would should
+tell give please i my the a an any list show get find has have was were may after before if in on for at as
+there this that hi hello hey so and but okay ok last next since provide describe explain help need want
+looking also thanks thank""".split())
 PRODUCT_NOUN = re.compile(r"\b([a-z][a-z-]+)\s+(?:loans?|accounts?|cards?|mortgages?|certificates?|lines? of credit)\b")
 
 
@@ -114,8 +150,12 @@ def subject(question: str, idf: dict) -> tuple[str, set, set]:
     or the kind of product ("construction" loan). Returns (the phrase as asked, its search terms,
     the terms of its proper names only: those must exist on the site at all, its acronyms)."""
     words = re.findall(r"[A-Za-z][A-Za-z'’$-]*", question)
-    names = [w for k, w in enumerate(words) if k > 0 and w[0].isupper() and not w.isupper()
-             and re.split(r"['’]", w.lower())[0] not in NOT_NAMES]
+    base = lambda w: re.split(r"['’]", w.lower())[0]
+    # the first word is capitalised anyway: it is a name only as part of a longer one ("Mullan Avenue ...?"),
+    # not in "Number of branches?" or "Sorry, what was the routing number?"
+    first_ok = len(words) > 1 and words[1][0].isupper() and base(words[0]) not in STARTERS
+    names = [w for k, w in enumerate(words) if w[0].isupper() and not w.isupper()
+             and (k > 0 or first_ok) and base(w) not in NOT_NAMES]
     acronyms = [w for w in words if len(w) > 1 and w.isupper() and w.lower() not in GENERIC_ACRONYMS]
     kinds = [m for m in PRODUCT_NOUN.finditer(question.lower())
              if m.group(1) not in STOP and m.group(1) not in GENERIC_KINDS]
@@ -225,16 +265,20 @@ CLOSING = re.compile(rf"\b(clos\w*|discontinu\w*|end\w*|expir\w*)\b[^.]{{0,60}}?
 
 
 def status_prefix(question: str, text: str, today: date) -> str:
-    """'Is the Hy-Vee branch still open?' + 'This location will close March 31, 2026.' -> 'No. ...'"""
-    if not is_status(question):
-        return ""
+    """'Is the Hy-Vee branch still open?' + 'This location will close March 31, 2026.' -> 'No. ...';
+    'Is the Hy-Vee branch closed?' asks the opposite, so the same facts answer 'Yes. ...'."""
+    if not is_status(question) or WH_QUESTION.match(question):
+        return ""         # "when was the Hy-Vee branch closed?" wants the date, not a yes or no
     m = CLOSING.search(text)
     d = parse_long_date(m.group(2)) if m else None
     if d is None:
         return ""
     when = f"{d:%B} {d.day}, {d.year}"
+    closed_asked = bool(CLOSED_ASKED.search(question)) and not re.search(r"\bstill\b.*\bopen\b", question, re.I)
     if d <= today:
-        return f"No. It was scheduled to close on {when}, and that date has passed. "
+        return f"{'Yes' if closed_asked else 'No'}. It was scheduled to close on {when}, and that date has passed. "
+    if closed_asked:
+        return f"Not yet: it is scheduled to close on {when}. "
     return f"Yes, for now: it is scheduled to close on {when}. "
 
 
@@ -246,6 +290,37 @@ class Hit:
     doc: object
     quote: str
     confident: bool = True
+    also: tuple = ()          # other pages that print the same value(s): extra sources, most trusted first
+
+
+# values specific enough that another page printing them states the same fact
+KEY_VALUE = re.compile(r"\$\s?\d[\d,]*(?:\.\d+)?|\b\d+(?:\.\d+)?%|\b\d{9}\b|\(?\b\d{3}\)?[-. ]\d{3}[-. ]\d{4}\b"
+                       r"|\b\d{1,2}:\d\d\b|\b[\w-]+(?:\.[\w-]+)*\.(?:com|org)(?:/[\w-]+)*")
+
+
+SITE_LINK = re.compile(r"https?://(?:www\.)?dupaco\.com[^\s)\]]*")
+
+
+def linked_pages(view, text: str, exclude) -> tuple:
+    """Site pages the answer itself points to ('All locations: https://www.dupaco.com/contact')."""
+    out = []
+    for m in SITE_LINK.finditer(text):
+        d = view.pages.get(canonical_url(m.group(0).rstrip(".,")))
+        if d is not None and all(d is not x for x in list(exclude) + out):
+            out.append(d)
+    return tuple(out)
+
+
+def corroborate(view, doc, text: str, limit: int = 4) -> tuple:
+    """Pages besides `doc` whose text contains every key value of the answer sentence (routing number,
+    amount, time, link), most trusted then newest first. Nothing for a sentence without such values."""
+    vals = list(dict.fromkeys(m.group(0) for m in KEY_VALUE.finditer(text)))[:3]
+    if not vals:
+        return ()
+    found = [d for d in view.pages.values()
+             if d is not doc and d.kind not in ("expired", "listing") and all(v in d.text for v in vals)]
+    found.sort(key=lambda d: (-d.authority, -(d.published or date.min).toordinal(), d.url))
+    return tuple(found[:limit])
 
 
 LINK_ONLY = re.compile(r"\[([^\]]*)\]\([^)]*\)")
@@ -341,9 +416,13 @@ def hours_overview(cands) -> Optional[Hit]:
         return None
     ranked = sorted(blocks.values(), key=lambda b: (-len(b[0]), b[1]), reverse=False)[:4]
     lines = [f"{k}) {text}" for k, (_, _, text, _) in enumerate(ranked, 1)]
+    # one source per schedule shown (its most trusted, newest page), then the other pages of the first one
+    unique = lambda docs: list({id(d): d for d in docs}.values())       # PageDoc isn't hashable
+    best = lambda docs: sorted(unique(docs), key=lambda d: (-d.authority, -(d.published or date.min).toordinal(), d.url))
+    docs = unique([best(b[3])[0] for b in ranked] + best(ranked[0][3]))
     return Hit(text="Hours vary by branch. These schedules are listed on the website:\n" + "\n".join(lines)
                     + "\nWhich branch do you need? All locations: https://www.dupaco.com/contact",
-               doc=ranked[0][3][0], quote=ranked[0][2])
+               doc=docs[0], quote=ranked[0][2], also=tuple(docs[1:5]))
 
 
 def main_number(cands):
@@ -387,7 +466,22 @@ def context(c) -> frozenset:
 SYNONYMS = [(re.compile(r"\bbecome (?:a |an )?(?:dupaco )?member\b", re.I), "join as a member"),
             (re.compile(r"\b(?:apply for|sign up for|get) (?:a )?membership\b", re.I), "join as a member"),
             (re.compile(r"\bwho (?:can|may|is allowed to) join\b", re.I), "who is eligible to join"),
-            (re.compile(r"\bmembership (?:requirements?|eligibility|criteria|rules)\b", re.I), "eligible to join as a member")]
+            (re.compile(r"\bmembership (?:requirements?|eligibility|criteria|rules)(?: rules)?\b", re.I), "eligible to join as a member"),
+            (re.compile(r"\b(?:can|could|may) (?:anyone|anybody|someone|everyone) (?:join|become a member)\b", re.I),
+             "who is eligible to join"),
+            (re.compile(r"\bborrow(?:ing)? (?:money )?(?:to pay )?for (?:college|school|university|tuition)\b", re.I), "student loan"),
+            (re.compile(r"\b(?:staff|staffers|team members|workers|employes)\b", re.I), "employees"),
+            (re.compile(r"\bdrive[- ]?(?:thru|through)s?\b", re.I), "drive-up"),
+            (re.compile(r"\blobbies\b", re.I), "lobby")]
+# Question words that carry no topic ("how many branches does Dupaco operate NOW?", "what has Forbes SAID?")
+FILLER = frozenset(tokens("now currently current today presently right said say says nowadays these days "
+                          "operate operates run runs own owns about"))
+# words that only say WHICH kind of answer is wanted: "what's the LINK to the branch locator?" is about the locator
+KIND_WORDS = {"a link": frozenset(tokens("link links url urls website web page site online address")),
+              "that number": frozenset(tokens("number count total"))}
+# A call to action ("For more information ... visit ...", "Learn more") points elsewhere instead of answering
+CTA = re.compile(r"^\W*(for more (information|details)|to learn more|learn more|click here|find out more|visit\b|"
+                 r"apply (now|today|online)|contact us|call us|get started)", re.I)
 
 
 def search(view, question: str, idf: dict, today: date, defs: Optional[dict] = None,
@@ -396,7 +490,11 @@ def search(view, question: str, idf: dict, today: date, defs: Optional[dict] = N
     exist yet on that day, so they can't answer."""
     for rx, repl in SYNONYMS:
         question = rx.sub(repl, question)
-    q = set(tokens(question))
+    if re.search(r"\b(address|located|location|where|hours|open)\b", question, re.I):
+        question = re.sub(r"\boffice\b", "branch", question, flags=re.I)    # "the Galena office" is a branch
+    q = set(tokens(question)) - FILLER
+    kind, pattern = answer_kind(question)
+    q = (q - KIND_WORDS.get(kind, frozenset())) or q
     if not q:
         return None
     # "I don't know" only when the site truly doesn't know (user decision, 2026-10-19):
@@ -406,7 +504,8 @@ def search(view, question: str, idf: dict, today: date, defs: Optional[dict] = N
     if missing and phrase:
         return dont_know(f"the website doesn't mention {phrase}.")
     products = q & PRODUCT_WORDS
-    kind, pattern = answer_kind(question)
+    if kind == "a branch":
+        pattern = BranchNames(re.findall(r"[A-Z][\w'’-]+", question))
     cands = []
     for doc, ch in candidate_chunks(view, q):
         if published_by and doc.published and doc.published > published_by:
@@ -428,7 +527,10 @@ def search(view, question: str, idf: dict, today: date, defs: Optional[dict] = N
             score = own_w + 0.5 * sum(idf.get(t, 0.0) for t in (head | near) - own)   # page title, neighbours: half
             if products and not products & (own | head | near):
                 score *= 0.5
-            cands.append((score, doc, ch, i, (len(own), own_w)))
+            cta = bool(CTA.match(visible)) and pattern not in (URL, PHONE)
+            if cta:
+                score *= 0.5          # "For more information about Home$tart, visit ..." doesn't say what it is
+            cands.append((score, doc, ch, i, (not cta, len(own), own_w)))
     if pattern:
         # the needed shape must appear in what we would answer (the sentence and the one or two after it),
         # in text about the thing asked ("Mullan Avenue" hours, not some other branch's hours)
@@ -445,13 +547,25 @@ def search(view, question: str, idf: dict, today: date, defs: Optional[dict] = N
         if pattern is TIME and not about:
             overview = hours_overview(typed)
             if overview:
+                overview.also += linked_pages(view, overview.text, (overview.doc,) + overview.also)
                 return overview
         cands = typed
+    elif about and (names or acronyms):
+        # no answer shape to check, but the question names something ("VTO usage last year?"): text about it
+        key = max(about, key=lambda t: idf.get(t, 0.0))
+        cands = [c for c in cands if mentions(c, key, acronyms)] or cands
     if not cands:
         return None
     asked_years = set(YEAR.findall(question))
     if asked_years:   # "how many ... in 2023": text about 2023, even if a newer article exists
-        cands = [c for c in cands if asked_years & set(YEAR.findall(compose(c[2], c[3])))] or cands
+        years = lambda c: set(YEAR.findall(compose(c[2], c[3])))
+        dated = [c for c in cands if asked_years & years(c)
+                 or (not years(c) and c[1].published and str(c[1].published.year) in asked_years)]
+        if not dated and years(max(cands, key=lambda c: c[0])):
+            # the site gives this figure year by year, just not for the year asked: another year's
+            # number would be a wrong answer (user decision, 2026-10-21)
+            return dont_know(f"the website doesn't give that figure for {' or '.join(sorted(asked_years))}.")
+        cands = dated or cands
     best = max(c[0] for c in cands)
     near = [c for c in cands if c[0] >= 0.9 * best]
 
@@ -478,4 +592,6 @@ def search(view, question: str, idf: dict, today: date, defs: Optional[dict] = N
     if pattern is DATE and not DATE.search(text) and doc.published:
         text += f" (Dupaco news release published {doc.published:%B} {doc.published.day}, {doc.published.year}.)"
     text = status_prefix(question, text, today) + text + earlier_years(ch.sents[i], doc, cands)
-    return Hit(text=expand_definitions(text, defs or {}), doc=doc, quote=ch.sents[i][0])
+    also = corroborate(view, doc, ch.sents[i][0])
+    also += linked_pages(view, text, (doc,) + also)
+    return Hit(text=expand_definitions(text, defs or {}), doc=doc, quote=ch.sents[i][0], also=also[:6])

@@ -12,6 +12,7 @@ Each data row becomes one RateRow that says
   * WHICH product      family ("certificate"), name ("special"), qualifiers ({"jumbo"}, {"business"} ...)
   * WHICH tier         term (17 months) / balance or loan amount ($10,000-$24,999.99) / model years (2024-2027)
   * the numbers        dividend rate, APY, rate, APR
+  * the conditions     minimum to open / to earn ($1,000.00 for a certificate, $50,000 to open High-Yield Savings)
   * WHEN               the "Rates are effective as of" date printed under the table
 
 Answering and conflict detection compare RateRows, never raw text, so "6-month vs 12-month"
@@ -20,7 +21,7 @@ or "$10k vs $25k tier" can never be mistaken for a contradiction.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from typing import Optional
 
@@ -113,6 +114,13 @@ class RateRow:
     effective: Optional[date]   # "Rates are effective as of ..." under the table (None = not printed)
     table: int                  # which rate table on the page (0, 1, 2 ...)
     raw: str                    # the markdown row, for quoting
+    minimums: dict = field(default_factory=dict)   # "min_open" / "min_earn" / "min_balance" -> "$1,000.00"
+
+    @property
+    def min_amount(self) -> Optional[float]:
+        """The balance needed before this rate applies: the larger of 'to open' and 'to earn'."""
+        vals = [_num(m.group(1)) for v in self.minimums.values() for m in [re.search(AMOUNT, v)] if m]
+        return max(vals) if vals else None
 
     @property
     def key(self):
@@ -138,6 +146,7 @@ RATE_COLUMN = re.compile(r"rate|apy|apr|yield|dividend", re.I)
 HEADING = re.compile(r"^#{1,6}\s+")
 TAB_LINK = re.compile(r"^-\s*\[([^\]]*Rates)\]\(")      # older layout: "- [Money Market Account Rates](...#)"
 RATE_KINDS = ("rate", "dividend", "apy", "apr", "promo_dividend", "promo_apy")
+MIN_KINDS = ("min_open", "min_earn", "min_balance")
 
 
 def split_row(line: str) -> list[str]:
@@ -354,7 +363,7 @@ def parse_rate_tables(text: str, url_path: str = "") -> list[RateRow]:
             if len(cells) < 2 or not cells[0]:
                 continue
             label = cells[0]
-            rates, term_cell, tier_cell = {}, "", ""
+            rates, term_cell, tier_cell, minimums = {}, "", "", {}
             for kind, cell in zip(kinds[1:], cells[1:]):
                 if not cell or cell in ("—", "-", "None", "N/A"):
                     continue
@@ -368,6 +377,8 @@ def parse_rate_tables(text: str, url_path: str = "") -> list[RateRow]:
                     term_cell = cell
                 elif "$" in cell and kind == "tier":
                     tier_cell = cell
+                elif "$" in cell and kind in MIN_KINDS:
+                    minimums[kind] = cell
             if not rates:
                 continue
             # the header's first cell sometimes names the product ("| Business Platinum Visa | APR |")
@@ -381,6 +392,6 @@ def parse_rate_tables(text: str, url_path: str = "") -> list[RateRow]:
                 display=display_name(caption, label, term_cell, tier_cell, quals),
                 caption=caption, term_months=term_months(term_cell) or term_months(label),
                 tier=tier_cell, tier_lo=lo, tier_hi=hi, years=parse_model_years(label),
-                rates=rates, effective=eff, table=ti, raw=line.strip(),
+                rates=rates, effective=eff, table=ti, raw=line.strip(), minimums=minimums,
             ))
     return rows

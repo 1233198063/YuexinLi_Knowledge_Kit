@@ -15,8 +15,12 @@ Two kinds of contradiction, both found on structured data (never by comparing ra
     time Forbes recognized Dupaco"). Statistics labelled with a year ("256 employees in 2024") are
     history, not contradictions (user decision), and are skipped.
 
-The winner follows the same rules as answers: newest "effective as of" date, then page trust
-(kb_rate_qa.compete); for text, the newest publish date.
+ 3. PAGE changes - an undated page (product page, PDF) that changed a dollar figure or count between
+    downloads: "hardship grants up to $2,000" -> "$3,500", "minimum cash back redemption $50.00" -> "$25.00".
+
+The winner follows the same rules as answers: newest "effective as of" date, then page trust, decided
+for the whole product table (kb_rate_qa.compete); for news text, the newest publish date; for an
+undated page, its version in the newest download.
 """
 from __future__ import annotations
 
@@ -27,6 +31,7 @@ from datetime import date
 from typing import Optional
 
 from kb_chunks import tokens
+from kb_pages import observed_in
 from kb_rate_qa import compete, fmt_date, fmt_row
 from kb_search import same_statement, signature
 
@@ -102,6 +107,12 @@ def rate_conflicts(snaps) -> list[Found]:
                 continue
             for r in doc.rates:
                 seen[(r.key, r.term_months)].append((s, doc, r))
+    # the current table is chosen per PRODUCT, exactly as answers do: when the newest table dropped a
+    # term, an older page still listing that term is outdated, not current
+    win_all, lose_all = compete([(d, r) for d in latest.pages.values() if d.kind != "expired" for r in d.rates])
+    win_table = {}
+    for d, r in win_all:
+        win_table.setdefault(r.key, (d, r))
     out = []
     for group, rows in seen.items():
         facts = {}                                    # distinct (tier, numbers) -> where and when it was printed
@@ -123,8 +134,8 @@ def rate_conflicts(snaps) -> list[Found]:
         tiers = defaultdict(list)
         for i, f in enumerate(items):
             tiers[root(i)].append(f)
-        now = [(d, r) for s, d, r in rows if s is latest]
-        winners, losers = compete(now) if now else ([], [])
+        winners = [(d, r) for d, r in win_all if (r.key, r.term_months) == group]
+        losers = [(d, r) for d, r in lose_all if (r.key, r.term_months) == group]
         for tier in tiers.values():
             if not any(_common_differs(a["row"].rates, b["row"].rates) for i, a in enumerate(tier) for b in tier[i + 1:]):
                 continue                              # one tier, one set of numbers: no contradiction
@@ -150,6 +161,12 @@ def rate_conflicts(snaps) -> list[Found]:
                           f"({win_doc.url.replace('https://www.dupaco.com', '') or '/'}) in the latest download")
                 reason += (f"; still showing older numbers: {', '.join(stale_now[:4])}." if stale_now
                            else "; the other values are from earlier downloads (the rate changed over time).")
+            elif group[0] in win_table:
+                d, r = win_table[group[0]]
+                resolution = None
+                reason = (f"The current table for this product ({d.url.replace('https://www.dupaco.com', '') or '/'}, "
+                          f"effective {fmt_date(r.effective)}) no longer lists this tier, so every value shown "
+                          f"for it is outdated and the rate is unknown.")
             else:
                 resolution, reason = None, "No longer listed in the latest download."
             sources = sorted({(u, max(f["snaps"])) for f in tier for u in f["pages"]})[:8]
@@ -240,10 +257,88 @@ def text_conflicts(view, min_pages: int = 3) -> list[Found]:
         found.append(Found(
             topic=f"{what}: {sample[:90]}",
             values=values,
-            sources=sorted({(d.url, view.snapshot_id) for where in ranked for d, _ in where})[:8],
+            sources=sorted({(d.url, observed_in(view, d)) for where in ranked for d, _ in where})[:8],
             resolution=sample,
             reason="The same statement is repeated across press releases with different numbers; the most "
                    "recently published version is current, older releases describe the past.",
+        ))
+    return found
+
+
+# ---------------------------------------------------------------- 3. page changes
+
+MONEY = re.compile(r"\$\s?\d[\d,]*(?:\.\d+)?")
+STATIC_KINDS = ("expired", "listing", "calculator", "news", "blog")   # calculators recompute their examples
+
+
+def _dollar_sentences(doc) -> dict:
+    """{sentence with its $ figures as '#': (figures, sentence)} for one page version. Skipped: tables,
+    paragraphs that print a rate (payment examples follow the rate table), and a template used twice
+    with different figures on one page (two cards' credit limits are two facts, not one that changed)."""
+    out, clash = {}, set()
+    for ch in doc.chunks:
+        if any("%" in s for s, _ in ch.sents):
+            continue
+        for s, _ in ch.sents:
+            vals = tuple(MONEY.findall(s))
+            if not vals or "|" in s:
+                continue
+            tpl = MONEY.sub("#", s).strip()
+            if len(tpl) < 25:
+                continue
+            if tpl in out and out[tpl][0] != vals:
+                clash.add(tpl)
+            out.setdefault(tpl, (vals, s))
+    return {t: v for t, v in out.items() if t not in clash}
+
+
+def page_changes(snaps) -> list[Found]:
+    """A dollar figure an undated page changed between downloads ('grants up to $2,000' -> '$3,500').
+    The newest download's version is current; the same change on several pages is one conflict."""
+    latest = snaps[-1]
+    seen = defaultdict(list)          # (page key, template) -> [(snapshot id, figures, sentence, doc)]
+    for s in snaps:
+        for key, doc in s.pages.items():
+            if key in s.carried or doc.kind in STATIC_KINDS or doc.published:
+                continue
+            for tpl, (vals, sent) in _dollar_sentences(doc).items():
+                seen[(key, tpl)].append((s.snapshot_id, vals, sent, doc))
+    changes = defaultdict(list)       # (old figures, current figures) -> [(key, history)]
+    for (key, tpl), hist in seen.items():
+        if len({v for _, v, _, _ in hist}) < 2 or key not in latest.pages:
+            continue
+        now = latest.pages[key]
+        if tpl not in _dollar_sentences(now):
+            continue                  # reworded since: the current figure can't be read off this sentence
+        current = hist[-1][1]
+        old = tuple(sorted({v for _, v, _, _ in hist if v != current}))
+        changes[(old, current)].append((key, hist))
+    found = []
+    for (old, current), where in sorted(changes.items()):
+        versions = defaultdict(lambda: {"snaps": set(), "pages": set(), "sent": ""})
+        for key, hist in where:
+            for sid, vals, sent, doc in hist:
+                v = versions[vals]
+                v["snaps"].add(sid)
+                v["pages"].add(doc.url)
+                v["sent"] = sent
+        order = sorted(versions, key=lambda v: max(versions[v]["snaps"]))
+        values = []
+        for v in order:
+            x = versions[v]
+            pages = ", ".join(sorted(u.replace("https://www.dupaco.com", "") or "/" for u in x["pages"])[:3])
+            values.append(f"{x['sent'][:160]} [{'current' if v == current else 'outdated'}; {pages}; "
+                          f"snapshots {', '.join(sorted(s[:2] for s in x['snaps']))}]")
+        sample = versions[current]["sent"]
+        title = latest.pages[where[0][0]].title.split("|")[0]
+        title = re.sub(r"^\s*Microsoft Word\s*-\s*|\.docx?\s*$", "", title).strip()   # PDF titles from Word files
+        found.append(Found(
+            topic=f"{title}: {sample[:90]}",
+            values=values,
+            sources=sorted({(u, max(versions[v]["snaps"])) for v in order for u in versions[v]["pages"]})[:8],
+            resolution=sample,
+            reason=(f"The page itself changed this figure between downloads ({' / '.join(', '.join(v) for v in old)} "
+                    f"-> {', '.join(current)}); the version in the newest download is current."),
         ))
     return found
 
@@ -272,4 +367,5 @@ def merge_twins(found: list[Found]) -> list[Found]:
 
 def find_conflicts(snaps) -> list[Found]:
     """Most specific first (fewest competing values), so a broad conflict never stands in for a narrow one."""
-    return sorted(merge_twins(rate_conflicts(snaps)) + text_conflicts(snaps[-1]), key=lambda c: (len(c.values), c.topic))
+    found = merge_twins(rate_conflicts(snaps)) + text_conflicts(snaps[-1]) + page_changes(snaps)
+    return sorted(found, key=lambda c: (len(c.values), c.topic))

@@ -71,7 +71,8 @@ def tokens(text: str) -> list[str]:
     """Lower-case, lightly stemmed words and numbers, minus stop words: the vocabulary search works with."""
     text = re.sub(r"https?://\S+", " ", re.sub(r"\]\([^)]*\)", "] ", text))   # link text counts, its URL doesn't
     words = WORD.findall(text.lower().replace("$", " ").replace("’", "").replace("'", ""))
-    return [stem(w) for w in words if w not in STOP and (len(w) > 1 or w.isdigit())]
+    out = [stem(w) for w in words if w not in STOP and (len(w) > 1 or w.isdigit())]
+    return [s for s in out if s not in STOP]     # "Dupaco's" -> "dupacos" -> "dupaco": still a stop word
 
 
 ABBREV = re.compile(r"\b(St|Ave|Dr|Rd|Ln|Blvd|Mr|Mrs|Ms|Jr|Sr|Inc|Co|No|U\.S|a\.m|p\.m|Jan|Feb|Mar|Apr|Aug|"

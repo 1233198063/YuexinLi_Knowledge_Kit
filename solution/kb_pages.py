@@ -166,6 +166,15 @@ class SnapView:
     carried: set = field(default_factory=set)   # keys of pages not re-downloaded this time, kept from an earlier one
 
 
+def observed_in(view: SnapView, doc: PageDoc) -> str:
+    """The download that really contained this version of the page: the view's own, or for a page carried
+    forward from an earlier download, the last download that fetched it (sources must be checkable)."""
+    if view.snapshot_id in doc.snapshots:
+        return view.snapshot_id
+    earlier = [s for s in doc.snapshots if s <= view.snapshot_id]
+    return max(earlier) if earlier else doc.first_seen
+
+
 def make_doc(url: str, title: str, markdown: str) -> PageDoc:
     kind = page_kind(url, title)
     text = clean(markdown)
