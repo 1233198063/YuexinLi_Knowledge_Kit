@@ -479,6 +479,7 @@ FILLER = frozenset(tokens("now currently current today presently right said say 
 # words that only say WHICH kind of answer is wanted: "what's the LINK to the branch locator?" is about the locator
 KIND_WORDS = {"a link": frozenset(tokens("link links url urls website web page site online address")),
               "that number": frozenset(tokens("number count total"))}
+AMOUNT_WORDS = frozenset(tokens("fee fees cost costs charge charges price prices much pay amount"))
 # A call to action ("For more information ... visit ...", "Learn more") points elsewhere instead of answering
 CTA = re.compile(r"^\W*(for more (information|details)|to learn more|learn more|click here|find out more|visit\b|"
                  r"apply (now|today|online)|contact us|call us|get started)", re.I)
@@ -537,6 +538,10 @@ def search(view, question: str, idf: dict, today: date, defs: Optional[dict] = N
         if about:
             key = max(about, key=lambda t: idf.get(t, 0.0))      # its most specific word
             cands = [c for c in cands if mentions(c, key, acronyms)]
+        if pattern is MONEY and q - AMOUNT_WORDS:
+            # a fee must be the fee asked about: "lost debit card REPLACEMENT", not another debit-card fee
+            key = max(q - AMOUNT_WORDS, key=lambda t: idf.get(t, 0.0))
+            cands = [c for c in cands if key in context(c)]
         typed = [c for c in cands if pattern.search(compose(c[2], c[3]))]
         if not typed and pattern is DATE:   # a news release about the event is dated even if its text isn't
             typed = [c for c in cands if c[1].published]

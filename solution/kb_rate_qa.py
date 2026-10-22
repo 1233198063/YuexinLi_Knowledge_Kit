@@ -127,6 +127,32 @@ def _amount(num: str, unit: Optional[str]) -> float:
     return v * 1_000 if u in ("k", "thousand") else v * 1_000_000 if u in ("m", "million") else v
 
 
+# A product the question names in capitals ("Mortgage Rate Relief Program"): its distinctive words must be
+# printed in the family's rate rows, or the plain rows would answer for a product they don't describe.
+NAME_RUN = re.compile(r"[A-Z][\w'’$-]*(?:\s+[A-Z][\w'’$-]*)+")
+GENERIC_NAME_WORDS = frozenset("""mortgage mortgages rate rates loan loans account accounts savings saving checking
+    certificate certificates card cards credit visa program plan special fixed home auto personal business money
+    market club share the and for dupaco dupacos what how is are can do does did which when where who why will
+    would tell give please your our january february march april may june july august september october november
+    december""".split())
+
+
+def unknown_names(question: str) -> list:
+    """'What is the Mortgage Rate Relief Program rate?' -> ['relief']; 'Bright Savings APY?' -> ['bright']."""
+    out = []
+    for m in NAME_RUN.finditer(question):
+        words = m.group(0).split()
+        if not question[:m.start()].strip() or re.search(r"[.?!:]\s*$", question[:m.start()]):
+            words = words[1:]     # a sentence's first word is capitalised anyway ("Highest APY ...?")
+        for w in words:
+            if w.rstrip("s").isupper() or len(w) < 3:
+                continue          # APY, APRs, IRA ...
+            w = re.sub(r"['’]", "", w.lower())
+            if w not in GENERIC_NAME_WORDS:
+                out.append(w)
+    return out
+
+
 def unknown_kinds(ql: str, family: str) -> list:
     """'what mortgage rate can I get for a construction loan?' -> ['construction loan'];
     'home equity loan', 'jet ski loan', '30-year fixed mortgage' -> [] (vocabulary or plain words)."""
@@ -331,10 +357,19 @@ def answer_rate_question(view, question: str) -> Optional[RateAnswer]:
     pairs = [(d, r) for d in view.pages.values() if d.kind != "expired" for r in d.rates if r.family == q.family]
     if not pairs:
         return None                                   # the site has no rate table for this: leave it to text search
-    printed = " ".join(f"{r.caption} {r.display}" for _, r in pairs).lower()
+    printed = re.sub(r"['’]", "", " ".join(f"{r.caption} {r.display}" for _, r in pairs).lower())
     if any(not re.search(rf"\b{re.escape(k.split()[0])}", printed) for k in q.kinds):
         return None       # "construction loan" is not a row of the mortgage table: text search, about that kind only
+    named = unknown_names(question)
+    if any(w not in printed for w in named):
+        return None       # a product no rate table names: text search
     winners, losers = compete(pairs)
+    if named:             # "Mortgage Rate Relief Program": only rows of that product, from the current tables
+        has = lambda r: all(w in re.sub(r"['’]", "", f"{r.caption} {r.display}".lower()) for w in named)
+        winners = [(d, r) for d, r in winners if has(r)]
+        if not winners:   # only an out-of-date page still lists it (rule 5: products compete as whole tables)
+            return RateAnswer(text="I don't know a current rate for that: the current rate tables no longer list it. "
+                                   "Please contact Dupaco or see https://www.dupaco.com/rates.", confident=False)
     main, extra = select(winners, q)
     if not main and not extra:
         return RateAnswer(text=NOT_LISTED, confident=False)

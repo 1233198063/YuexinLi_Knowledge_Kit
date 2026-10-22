@@ -55,6 +55,10 @@ Only when the site truly does not know:
 
 A loan kind the rate tables don't list ("construction loan", "land mortgage", "FHA" or "VA mortgage") is never answered with the plain mortgage rows. The question goes to rule 2, so it is answered only if some text about that kind prints a rate.
 
+A product the question names in capitals is answered only from rows of that product in the current tables. "Mortgage Rate Relief Program" was on /rates until June 2026; now only the never-updated /homebuying-guidance page lists it, so the latest answer is "the current rate tables no longer list it" (rule 5), while an "as of June 1, 2026" question gets 5.125%.
+
+A fee must be the fee asked about: the answer sentence has to mention the question's most specific word ("lost debit card REPLACEMENT", "CASHIER'S check"). The site lists neither of those two fees, so both are declined instead of being answered with some other debit-card fee.
+
 Otherwise the system answers with what the site says. Refusals contain no numbers.
 
 ## How answers are built
@@ -106,7 +110,7 @@ On `tests/sim_eval.jsonl`, a stand-in for the hidden set built by `tests/build_s
 `python tests/run_checks.py` covers what the public eval doesn't:
 
 - **59 reworded questions** on the public topics. Set B (30) was written fresh and passed 27/30 on its first run; the three misses were then fixed, so it is no longer an untouched test.
-- **21 review cases**: rate vs APY vs APR, minimums, loan kinds the tables don't list, yes/no polarity, missing years and source snapshot ids.
+- **29 review and later cases**: rate vs APY vs APR, minimums, loan kinds the tables don't list, yes/no polarity, missing years, source snapshot ids, unlisted fees, a product only a stale page still shows, change questions and dates written in the question.
 - **Synthetic snapshots** for cases the real data doesn't have: a term dropped from the newest table, a fee that changed.
 
 ## Developer tool

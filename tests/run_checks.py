@@ -107,6 +107,16 @@ REVIEW = [
     # 5. a year the site has no figure for (user decision B: decline, no other year's number)
     ("How many employees used Volunteer Time Off in 2022?", None, refused, "declined"),
     ("How many employees used Volunteer Time Off in 2023?", None, lambda a: "294" in a.text, "294"),
+    # later cases: a fee the site doesn't list, a product only a stale page still shows, change questions, dates in text
+    ("How much does a lost debit card replacement cost?", None, refused, "declined (no such fee listed)"),
+    ("What's the cashier's check fee?", None, refused, "declined (no such fee listed)"),
+    ("How much is the incoming wire transfer fee?", None, lambda a: "$10.00" in a.text, "$10.00"),
+    ("What is the Mortgage Rate Relief Program rate?", None, refused, "declined: only /homebuying-guidance still lists it"),
+    ("What is the Mortgage Rate Relief Program rate?", "2026-06-01", lambda a: "5.125%" in a.text, "5.125% while /rates listed it"),
+    ("Has the 10-month jumbo certificate special rate changed?", None,
+     lambda a: "4.00%" in a.text and "Before that" in a.text and "3.90%" in a.text, "4.00% now, 3.90% before"),
+    ("What was the 12-month certificate APY in May 2026?", None, lambda a: "2.90%" in a.text and "3.40%" not in a.text, "2.90%"),
+    ("What is the 12-month certificate APY?", None, lambda a: "3.40%" in a.text and "2.90%" not in a.text, "3.40% only"),
 ]
 
 
