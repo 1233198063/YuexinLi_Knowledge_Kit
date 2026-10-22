@@ -85,7 +85,7 @@ Otherwise the system answers with what the site says. Refusals contain no number
 ## Known limitations
 
 - Matching is lexical, with no embeddings, so unusual wording can miss. A few hand-written vocabularies (product families, member-word synonyms such as "become a member" = "join") are tuned to this site.
-- Rates written as prose lines ("APY: 3.50%") are not parsed into rate records; the Dupaco pages contain none.
+- Rates written as one strict "label metric: value" line ("6-month certificate APY: 3.50%") are parsed like a table row; a line saying the offer ended is skipped. Looser prose with a % is never turned into a rate record (the Dupaco pages have no such lines; the harness self-test does, and scores 1.0 including its conflict).
 - Branch hours exist only in old branch-opening press releases.
 
 ## Results

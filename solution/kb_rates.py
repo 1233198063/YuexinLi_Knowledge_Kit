@@ -339,6 +339,35 @@ def display_name(caption: str, label: str, term_cell: str, tier_cell: str, quals
     return name
 
 
+# A rate written as one "label metric: value" line instead of a table ("6-month certificate APY: 3.50%").
+# Strict on purpose: the whole line must be that, so marketing sentences with a % never become rate records.
+PROSE_RATE = re.compile(r"^\W*(?P<label>[A-Za-z0-9][A-Za-z0-9 ,.'’()/&-]{2,60}?)\s+(?P<metric>APY|APR|dividend rate|"
+                        r"interest rate|rate)\s*:?\s*(?P<pct>\d+(?:\.\d+)?)\s*%\s*(?P<rest>\(.*\))?\s*$", re.I)
+ENDED = re.compile(r"\b(ended|expired|no longer available|discontinued)\b", re.I)
+PROSE_METRIC = {"apy": "apy", "apr": "apr", "dividend rate": "dividend", "interest rate": "rate", "rate": "rate"}
+
+
+def parse_prose_rates(lines: list[str], table_index: int, url_path: str) -> list[RateRow]:
+    rows = []
+    for line in lines:
+        if line.startswith("|") or len(line) > 120:
+            continue
+        m = PROSE_RATE.match(line.strip())
+        if not m or ENDED.search(m.group("rest") or ""):
+            continue                  # "(offer ended 2025-09-30)": an expired promotion is not a current rate
+        label = m.group("label").strip(" :")
+        family = classify_family(label, url_path.replace("-", " "))
+        if not family:
+            continue
+        rows.append(RateRow(
+            family=family, name=product_name(family, label), quals=qualifiers(f"{label} {url_path}"), label=label,
+            display=label, caption="", term_months=term_months(label), tier="", tier_lo=None, tier_hi=None,
+            years=parse_model_years(label), rates={PROSE_METRIC[m.group("metric").lower()]: m.group("pct") + "%"},
+            effective=None, table=table_index, raw=line.strip(),
+        ))
+    return rows
+
+
 def parse_rate_tables(text: str, url_path: str = "") -> list[RateRow]:
     lines = text.split("\n")
     tables = [t for t in find_tables(lines) if is_rate_table(lines, *t)]
@@ -394,4 +423,5 @@ def parse_rate_tables(text: str, url_path: str = "") -> list[RateRow]:
                 tier=tier_cell, tier_lo=lo, tier_hi=hi, years=parse_model_years(label),
                 rates=rates, effective=eff, table=ti, raw=line.strip(), minimums=minimums,
             ))
-    return rows
+    # the page's prose rate lines count as one more table (they compete together as one product table)
+    return rows + parse_prose_rates([l for i, l in enumerate(lines) if i not in rate_lines], len(tables), url_path)

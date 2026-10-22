@@ -368,7 +368,11 @@ def answer_rate_question(view, question: str) -> Optional[RateAnswer]:
             title = "Business " + title
         prefix = "" if id(first) in shown_main else "Also: "
         body = "; ".join(fmt_row(r, first.caption) for _, r in members)
-        lines.append(f"{prefix}{title} (effective {fmt_date(first.effective)}): {body}.")
+        when = f"effective {fmt_date(first.effective)}" if first.effective else "no effective date printed"
+        if not first.caption and len(members) == 1:
+            lines.append(f"{prefix}{body} ({when}).")      # a lone prose line: its label already names it
+        else:
+            lines.append(f"{prefix}{title} ({when}): {body}.")
     if twins:
         lines.append("The business versions of these accounts pay the same rates.")
 
