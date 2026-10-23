@@ -117,7 +117,8 @@ def rate_conflicts(snaps) -> list[Found]:
                 seen[(r.key, r.term_months)].append((s, doc, r))
     # the current table is chosen per PRODUCT, exactly as answers do: when the newest table dropped a
     # term, an older page still listing that term is outdated, not current
-    win_all, lose_all = compete([(d, r) for d in latest.pages.values() if d.kind != "expired" for r in d.rates])
+    win_all, lose_all = compete([(d, r) for d in latest.pages.values() if d.kind != "expired" for r in d.rates],
+                                date.fromisoformat(latest.taken_on))
     win_table = {}
     for d, r in win_all:
         win_table.setdefault(r.key, (d, r))
@@ -166,7 +167,11 @@ def rate_conflicts(snaps) -> list[Found]:
                 provenance.append(f"{b} on {where} (effective {fmt_date(f['eff'])}; downloads {when})")
             label = _tier_label((win[0][1] if win else tier[-1]["row"]))
             topic = _topic(tier[-1]["row"]) + " rate" + (f" ({label})" if label else "")
-            if win:
+            if len(current) > 1:          # compete() found an exact tie: equally trusted, same date, different numbers
+                resolution = None
+                reason = ("Equally trusted pages with the same 'effective as of' date print different numbers for "
+                          "this tier, so no winner is invented.")
+            elif win:
                 win_doc, win_row = win[0]
                 stale_now = sorted({d.url.replace("https://www.dupaco.com", "") for d, r in losers
                                     if _fact(r) in rows_here and _fact(r) not in current})

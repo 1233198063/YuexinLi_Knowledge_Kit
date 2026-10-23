@@ -228,9 +228,26 @@ def parse_question(question: str) -> Optional[RateQuery]:
 
 # ---------------------------------------------------------------- choosing the current table
 
-def table_rank(doc, row):
-    """Rule 2 then rule 3, then a fixed tie-break so the same question always gets the same answer."""
-    return (row.effective or date.min, doc.authority, -len(doc.key), doc.key, -row.table)
+def table_rank(doc, row, today: Optional[date] = None):
+    """Rule 2 then rule 3, then a fixed tie-break so the same question always gets the same answer. A table that
+    takes effect after `today` (the download's date) is announced, not current: it ranks below every table in effect."""
+    pending = bool(today and row.effective and row.effective > today)
+    return (not pending, row.effective or date.min, doc.authority, -len(doc.key), doc.key, -row.table)
+
+
+def _disagree(rows_a, rows_b) -> bool:
+    """Two tables print different numbers for a tier both list."""
+    slots = {r.slot: r for r in rows_a}
+    return any(r.slot in slots and any(_values(v) != _values(slots[r.slot].rates[k])
+                                       for k, v in r.rates.items() if k in slots[r.slot].rates) for r in rows_b)
+
+
+def tied(winners) -> set:
+    """Product keys whose winners come from more than one table: equally authoritative, equally dated, disagreeing."""
+    tables = defaultdict(set)
+    for d, r in winners:
+        tables[r.key].add((d.key, r.table))
+    return {k for k, t in tables.items() if len(t) > 1}
 
 
 def _values(v: str) -> tuple:
@@ -255,16 +272,22 @@ def fill_metrics(winners, losers):
     return out
 
 
-def compete(pairs):
-    """pairs: [(doc, row)] -> (winning pairs, losing pairs). One winning table per product key."""
+def compete(pairs, today: Optional[date] = None):
+    """pairs: [(doc, row)] -> (winning pairs, losing pairs). One winning table per product key - unless another
+    table is in effect, dated the same day, equally trusted and prints different numbers: then no winner is
+    invented and both tables win (tied(); answers show both, conflicts get no resolution)."""
     tables = defaultdict(lambda: defaultdict(list))
     for doc, row in pairs:
         tables[row.key][(doc.key, row.table)].append((doc, row))
     winners, losers = [], []
     for by_table in tables.values():
-        best = max(by_table, key=lambda t: table_rank(*by_table[t][0]))
+        rank = {t: table_rank(*by_table[t][0], today) for t in by_table}
+        best = max(by_table, key=rank.get)
+        level = rank[best][:3]
+        tie = {t for t in by_table if t != best and rank[t][:3] == level
+               and _disagree([r for _, r in by_table[best]], [r for _, r in by_table[t]])}
         for t, members in by_table.items():
-            (winners if t == best else losers).extend(members)
+            (winners if t == best or t in tie else losers).extend(members)
     return winners, losers
 
 
@@ -416,7 +439,8 @@ def answer_rate_question(view, question: str) -> Optional[RateAnswer]:
     named = unknown_names(question)
     if any(w not in printed for w in named):
         return None       # a product no rate table names: text search
-    winners, losers = compete(pairs)
+    today = date.fromisoformat(view.taken_on)
+    winners, losers = compete(pairs, today)
     winners = fill_metrics(winners, losers)
     if named:             # "Mortgage Rate Relief Program": only rows of that product, from the current tables
         has = lambda r: all(w in re.sub(r"['’]", "", f"{r.caption} {r.display}".lower()) for w in named)
@@ -457,7 +481,8 @@ def answer_rate_question(view, question: str) -> Optional[RateAnswer]:
             title = "Business " + title
         prefix = "" if id(first) in shown_main else "Also: "
         body = "; ".join(fmt_row(r, first.caption) for _, r in members)
-        when = f"effective {fmt_date(first.effective)}" if first.effective else "no effective date printed"
+        when = (f"takes effect {fmt_date(first.effective)}" if first.effective and first.effective > today
+                else f"effective {fmt_date(first.effective)}" if first.effective else "no effective date printed")
         if not first.caption and len(members) == 1:
             lines.append(f"{prefix}{body} ({when}).")      # a lone prose line: its label already names it
         else:
@@ -474,6 +499,10 @@ def answer_rate_question(view, question: str) -> Optional[RateAnswer]:
     for doc, r in main + extra + agree:
         if doc.url not in [u for u, _, _ in urls]:
             urls.append((doc.url, r.raw, observed_in(view, doc)))
+    ties = tied(main + extra)
+    if ties:
+        lines.append("Note: equally authoritative pages dated the same day print different numbers for this "
+                     "product, so both are shown; please confirm with Dupaco.")
     lines.append("Source: " + ", ".join(u for u, _, _ in urls[:3]))
 
     # stale values: rows from losing tables that would also have answered this question, and whose

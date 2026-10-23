@@ -178,6 +178,8 @@ def observed_in(view: SnapView, doc: PageDoc) -> str:
 def make_doc(url: str, title: str, markdown: str) -> PageDoc:
     kind = page_kind(url, title)
     text = clean(markdown)
+    if "offer has expired" in text[:1000].lower():
+        kind = "expired"          # the notice can be in the page body, not only in its title
     return PageDoc(
         url=url, key=canonical_url(url), title=(title or "").strip(), kind=kind,
         authority=AUTHORITY[kind], published=publish_date(kind, markdown), text=text,

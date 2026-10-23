@@ -8,6 +8,8 @@ Regression checks beyond the public eval. Run from the kit's top folder:
 2. REVIEW       the cases from the 2026-10-21 code review (results/review/REVIEW.md), each pinned
                 to the behaviour we decided on.
 3. SYNTHETIC    tiny made-up snapshots for situations the real data doesn't contain.
+4. MUTATIONS    one rule, one changed input each: future-effective tables, exact ties, a page missing from one
+                download, a removed fee row, an expired offer, a stale calculator.
 Exit code 1 if anything fails.
 """
 import re
@@ -174,10 +176,91 @@ def check_synthetic():
     return "SYNTHETIC snapshots", 4 - len(bad), 4, bad
 
 
+# ---------------------------------------------------------------- 4. mutation tests: one rule, one changed input each
+def page(url, title, text, taken=""):
+    return Page(url, title, text, taken)
+
+
+def table(term_rows, effective, caption="Regular Certificates"):
+    t = f"{caption}\n\n| Term | APY |\n| --- | --- |\n" + "".join(f"| {m} Month | {v}% |\n" for m, v in term_rows)
+    return t + f"\nRates are effective as of {effective}.\n"
+
+
+def check_mutations():
+    cases = []
+    U = "https://www.dupaco.com"
+
+    # M1 a table that takes effect after the download's date is announced, not current
+    kb = build()
+    pages = [page(f"{U}/rates", "Rates", "# Rates\n\n" + table([(12, "3.50")], "03/01/2026")),
+             page(f"{U}/personal/savings-account", "Savings", "# Savings\n\n" + table([(12, "3.75")], "04/01/2026"))]
+    kb.ingest(Snapshot("01", "2026-03-10", pages))
+    a = kb.answer("What does a 12-month certificate pay?")
+    cases.append(("future-effective table is not current yet", "3.50%" in a.text and "3.75%" not in a.text, a.text))
+    kb.ingest(Snapshot("02", "2026-04-15", pages))
+    a = kb.answer("What does a 12-month certificate pay?")
+    cases.append(("...and is current once in effect", "3.75%" in a.text and "3.50%" not in a.text, a.text))
+
+    # M2 equally trusted pages, same date, different numbers: both shown, no invented winner
+    kb = build()
+    kb.ingest(Snapshot("01", "2026-03-10", [
+        page(f"{U}/personal/certificates", "Certificates", "# A\n\n" + table([(6, "3.00")], "03/01/2026")),
+        page(f"{U}/personal/savings-account", "Savings", "# B\n\n" + table([(6, "3.25")], "03/01/2026"))]))
+    a = kb.answer("What is the 6-month certificate APY?")
+    six = [c for c in kb.conflicts() if "6-month" in c.topic]
+    cases.append(("exact tie: both values shown", "3.00%" in a.text and "3.25%" in a.text, a.text))
+    cases.append(("exact tie: conflict without a winner", bool(six) and six[0].resolution is None,
+                  six[0].resolution if six else "no conflict"))
+
+    # M3 a page missing from one download is carried forward and cited from the download that had it
+    kb = build()
+    p1 = page(f"{U}/rates", "Rates", "# Rates\n\n" + table([(6, "3.00")], "01/01/2026"))
+    p3 = page(f"{U}/rates", "Rates", "# Rates\n\n" + table([(6, "3.40")], "03/01/2026"))
+    other = page(f"{U}/about", "About", "# About\n\nDupaco is a credit union.")
+    kb.ingest(Snapshot("01", "2026-01-05", [p1, other]))
+    kb.ingest(Snapshot("02", "2026-02-05", [other]))
+    kb.ingest(Snapshot("03", "2026-03-05", [p3, other]))
+    a = kb.answer("What is the 6-month certificate APY?", "2026-02-10")
+    cases.append(("carried page answers the gap", "3.00%" in a.text and all(s.snapshot_id == "01" for s in a.sources),
+                  f"{a.text} {[s.snapshot_id for s in a.sources]}"))
+    a = kb.answer("What is the 6-month certificate APY?")
+    cases.append(("...and the new version answers later", "3.40%" in a.text and "3.00%" not in a.text, a.text))
+
+    # M4 a row removed from the new version of a page is not resurrected from the old one
+    kb = build()
+    kb.ingest(Snapshot("01", "2026-01-05", [page(f"{U}/fees", "Fee schedule",
+              "# Fee schedule\n\nThe wire transfer fee is $25.00.\n\nThe stop payment fee is $30.00.")]))
+    kb.ingest(Snapshot("02", "2026-02-05", [page(f"{U}/fees", "Fee schedule",
+              "# Fee schedule\n\nThe stop payment fee is $30.00.")]))
+    a = kb.answer("How much is the wire transfer fee?")
+    cases.append(("removed fee row is unknown now", "$25" not in a.text and not a.confident, a.text))
+    a = kb.answer("How much is the wire transfer fee?", "2026-01-20")
+    cases.append(("...but known for its own date", "$25.00" in a.text, a.text))
+
+    # M5 an expired offer page never answers, even with a higher, newer-looking rate
+    kb = build()
+    kb.ingest(Snapshot("01", "2026-03-10", [
+        page(f"{U}/rates", "Rates", "# Rates\n\n" + table([(12, "3.40")], "01/01/2026")),
+        page(f"{U}/cd-special-lp", "CD special", "Oops! This Offer Has Expired\n\n" + table([(12, "4.50")], "03/01/2026"))]))
+    a = kb.answer("What does a 12-month certificate pay?")
+    cases.append(("expired offer never answers", "3.40%" in a.text and "4.50%" not in a.text, a.text))
+
+    # M6 a calculator's default rate loses to the rate sheet with the same date
+    kb = build()
+    kb.ingest(Snapshot("01", "2026-03-10", [
+        page(f"{U}/rates", "Rates", "# Rates\n\n" + table([(12, "3.40")], "03/01/2026")),
+        page(f"{U}/calculators/certificate", "Calculator", "# Calculator\n\n" + table([(12, "2.90")], "03/01/2026"))]))
+    a = kb.answer("What does a 12-month certificate pay?")
+    cases.append(("calculator loses to the rate sheet", "3.40%" in a.text and "2.90%" not in a.text, a.text))
+
+    bad = [f"{name}  ->  {detail[:160]!r}" for name, ok, detail in cases if not ok]
+    return "MUTATIONS", len(cases) - len(bad), len(cases), bad
+
+
 def main():
     kb = load()
     results = [check_paraphrases(kb, "A (tuned)", TUNED), check_paraphrases(kb, "B (fresh)", FRESH),
-               check_review(kb), check_synthetic()]
+               check_review(kb), check_synthetic(), check_mutations()]
     failed = 0
     for name, ok, total, bad in results:
         print(f"{name:24s} {ok}/{total}")
