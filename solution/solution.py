@@ -53,8 +53,12 @@ CHANGE_QUESTION = re.compile(r"\b(chang\w*|previous(ly)?|prior|used to|went (up|
 # the asker's own account state, which only the bank's systems know
 PRIVATE_STATE = re.compile(r"\b(?:has|have|is|was|were|are|did)\s+my\b[^?]{0,80}?\b(?:been\s+)?(?:verified|approved|"
                            r"completed|processed|received|confirmed|posted|cleared|accepted|denied|declined)\b"
-                           r"|\bwhat(?:'s| is| was)\s+my\s+(?:current\s+)?(?:account\s+)?(?:balance|account number|member "
-                           r"number|payment status|application status|loan status)\b", re.I)
+                           r"|\b(?:what(?:'s| is| was)|check|tell me|show me|look up|find|give me)\b[^?]{0,70}\bmy\b[^?]{0,50}"
+                           r"\b(?:balance|transactions?|transaction amount|account number|member number|payment status|"
+                           r"application status|loan status)\b(?![^?]*\b(?:apy|apr|rates?|interest|dividends?|earns?|"
+                           r"requirements?|required|minimum|need|needed|tiers?)\b)"
+                           r"|\b(?:i|me)\b[^?]{0,25}\bpersonally\b[^?]{0,30}\b(?:approved|qualify|get)\b"
+                           r"|\bmy (?:exact|approved|individual) (?:rate|apr)\b", re.I)
 # "a transfer posts on day 38 - does it qualify?" against "during the first 37 days": a yes or no first
 WINDOW_ASKED = re.compile(r"\b(?:on|by|at)\s+day\s+(\d+)\b|\b(\d+)\s+days\s+(?:after|from|following|since)\b", re.I)
 WINDOW_GIVEN = re.compile(r"\b(?:first|within(?:\s+the\s+first)?)\s+(\d+|" + "|".join(
@@ -296,7 +300,11 @@ class KnowledgeBase:
                 # "As of January 10, ... $220,000 ...; and as of May 10, ... $250,000 ...?" with no as_of passed:
                 # each part as the site stood on its own date
                 return self.combine([self._answer_one(c, d or as_of, history) for c, d in zip(clauses, dated)])
-        if len(clauses) > 1 and len({question_kind(c) for c in clauses}) > 1:
+        kinds = {question_kind(c) for c in clauses} if len(clauses) > 1 else set()
+        if kinds <= {"rate", ""} and parse_question(question) and \
+                any(re.search(r"\b(?:tiers?|bands?|brackets?)\b", c, re.I) for c in clauses if question_kind(c) == ""):
+            kinds = set()     # "Which tier applied to $12,000, and what was its APY?": one rate question, not two
+        if len(kinds) > 1:
             # two questions asking for different kinds of answer (a rate and a date, a fee and a limit): each is
             # answered on its own, so neither part is dropped
             return self.combine([self._answer_one(c, as_of, history) for c in clauses])

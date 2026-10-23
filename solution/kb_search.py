@@ -177,8 +177,8 @@ def subject(question: str, idf: dict) -> tuple[str, set, set]:
     names = [w for k, w in enumerate(words) if w[0].isupper() and not w.isupper() and not at_start[k]
              and (k > 0 or first_ok) and base(w) not in NOT_NAMES and not re.fullmatch(r"(?i)po-?box", w)]
     acronyms = [w for w in words if len(w) > 1 and w.isupper() and w.lower() not in GENERIC_ACRONYMS]
-    kinds = [m for m in PRODUCT_NOUN.finditer(question.lower())
-             if m.group(1) not in STOP and m.group(1) not in GENERIC_KINDS]
+    kinds = [m for m in PRODUCT_NOUN.finditer(re.sub(r"(?<=[a-z])-(?=[a-z])", " ", question.lower()))
+             if m.group(1) not in STOP and m.group(1) not in GENERIC_KINDS]   # "student-loan page" = student loan
     phrase = " ".join(names + acronyms) or (kinds[0].group(0) if kinds else "")
     return (phrase, set(tokens(" ".join(names + acronyms + [m.group(1) for m in kinds]))),
             set(tokens(" ".join(names))), {a.lower() for a in acronyms})
@@ -569,6 +569,9 @@ def context(c) -> frozenset:
 
 # Members' words -> the site's words (only the question is rewritten).
 SYNONYMS = [(re.compile(r"\b(?:expiry|expiration)\b", re.I), "expires"),       # "its expiry clock" ~ "expires eight months ..."
+            # "a penalty for paying it off early" ~ "no prepayment penalties"
+            (re.compile(r"\bpay(?:ing|s)?\s+(?:[\w-]+\s+){0,4}?off\s+early\b|\bpay(?:ing|s)?\s+off\s+(?:[\w$,.-]+\s+){0,5}?early\b"
+                        r"|\bearly\s+pay-?off\b", re.I), lambda m: m.group(0) + " (prepayment)"),   # keeps "student loan"
             (re.compile(r"\bbecome (?:a |an )?(?:dupaco )?member\b", re.I), "join as a member"),
             (re.compile(r"\b(?:apply for|sign up for|get) (?:a )?membership\b", re.I), "join as a member"),
             (re.compile(r"\bwho (?:can|may|is allowed to) join\b", re.I), "who is eligible to join"),
@@ -632,6 +635,11 @@ def search(view, question: str, idf: dict, today: date, defs: Optional[dict] = N
     if missing and phrase:
         return dont_know(f"the website doesn't mention {phrase}.")
     products = q & PRODUCT_WORDS
+    # the kind of product named ("STUDENT loan", "PERSONAL loan", "share-SECURED loan"): text about another kind
+    # (a home equity loan's "no penalty for paying it off early") doesn't answer it
+    kind_words = sorted({m.group(1) for m in PRODUCT_NOUN.finditer(re.sub(r"(?<=[a-z])-(?=[a-z])", " ", question.lower()))
+                         if m.group(1) not in STOP and m.group(1) not in GENERIC_KINDS})
+    # (matched as whole words, not stems: "personalized repayment plans" is not about a PERSONAL loan)
     if kind == "a branch":
         pattern = BranchNames(re.findall(r"[A-Z][\w'’-]+", question))
     cands = []
@@ -662,6 +670,17 @@ def search(view, question: str, idf: dict, today: date, defs: Optional[dict] = N
                 score *= 0.5          # "For more information about Home$tart, visit ..." doesn't say what it is
             cands.append((score, doc, ch, i, (not cta, len(own), own_w)))
     # (a) also for an acronym: one the site never prints, not even spelled out ("SWIFT code"), is unknown
+    # a kind only if the site titles a product that way ("Student Loans", "Home Equity Loan"): "posted mortgage
+    # rates", "supported card types", "hourly account research" name no product
+    titled = [w for w in kind_words if not w.endswith(("ed", "ing")) and any(
+        re.search(rf"\b{re.escape(w)}s?\s+(?:[a-z]+\s+)?(?:loans?|cards?|accounts?|mortgages?|certificates?|lines? of credit)\b",
+                  c[2].heading, re.I) for c in cands)]
+    if titled:
+        # text about the named kind (in its heading or around it - not the URL: every consumer page's URL says
+        # "personal"), when there is any; otherwise every candidate stays
+        kind_rx = re.compile(r"\b(?:" + "|".join(re.escape(w) for w in titled) + r")s?\b", re.I)
+        about_kind = lambda c: kind_rx.search(" ".join([c[2].heading] + [x for x, _ in c[2].sents[max(0, c[3] - 1):c[3] + 2]]))
+        cands = [c for c in cands if about_kind(c)] or cands
     unknown_acr = [a for a in acronyms if len(a) > 2 and a not in idf]
     if unknown_acr and not any(mentions(c, a, acronyms) for a in unknown_acr for c in cands):
         return dont_know(f"the website doesn't mention {' '.join(a.upper() for a in unknown_acr)}.")

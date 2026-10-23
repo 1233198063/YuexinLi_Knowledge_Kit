@@ -121,6 +121,34 @@ CONTROLS = {
          "there an origination fee?", None, HAS("graduated", "$0"), ()),
         ("What is the origination fee on Dupaco student loans?", None, HAS("$0"), ()),
     ],
+    "several model years": [
+        ("What 60-month APRs apply to a 2022 car and to a 2025 car?", None, HAS("5.64%", "5.39%"), ()),
+        ("For 60 months, what does a 2025 car's APR compare to a 2022 car's?", None, HAS("5.64%", "5.39%"), ()),
+        ("What 60-month APR applies to a 2025 car?", None, HAS("5.39%"), ("5.64%",)),
+    ],
+    "purchase and refinance together": [
+        ("Give the 30-year purchase and refinance quotes for a $100,000 conventional loan.", None, HAS("7.27%", "7.28%"), ()),
+        ("What is the 30-year refinance APR for $100,000?", None, HAS("7.28%"), ("7.27%",)),
+        ("What is the 30-year purchase APR for $100,000?", None, HAS("7.27%"), ("7.28%",)),
+    ],
+    "the two ends of the terms": [
+        ("Which personal loan terms are the shortest and the longest, and their APRs?", None, HAS("9.99%", "12.49%"), ("10.49%", "10.99%")),
+        ("List every personal loan term and APR.", None, HAS("9.99%", "10.49%", "10.99%", "12.49%"), ()),
+    ],
+    "two terms compared are two rates": [
+        ("How does a regular 36-month Roth IRA stack up against the 17-month Roth IRA special?", None, HAS("2.10%", "4.10%"), ()),
+    ],
+    "which tier and its rate: one question": [
+        ("Which Investor's Choice tier covers $12,000, and what is its APY?", None, HAS("0.30%"), ("0.25%", "0.35%")),
+    ],
+    "the asker's own account": [
+        ("Could you look up my savings balance from these pages?", None, REFUSE, ()),
+        ("What is the minimum balance to earn the 1st Rate Checking APY?", None, HAS("$5,000"), ()),
+    ],
+    "the named kind of product": [
+        ("Is there a penalty for paying off a Dupaco student loan early?", None, HAS("prepayment"), ()),
+        ("Is there a penalty for paying off a Dupaco home equity loan early?", None, HAS("paying it off early"), ()),
+    ],
     "a named product beats a family word": [
         ("Leave the money market numbers aside: what APY does Share Savings pay on $12,000?", None, HAS("0.15%"), ("0.30%",)),
         ("What APY does the Investor's Choice money market pay on $12,000?", None, HAS("0.30%"), ("0.15%",)),

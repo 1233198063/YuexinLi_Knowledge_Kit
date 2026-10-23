@@ -29,7 +29,7 @@ from kb_pages import observed_in
 
 # ---------------------------------------------------------------- reading the question
 
-RATE_INTENT = re.compile(r"\b(rates?|apys?|aprs?|yields?|dividends?|interest|percent(age)?)\b|%", re.I)
+RATE_INTENT = re.compile(r"\b(rates?|apys?|aprs?|yields?|dividends?|interest|percent(age)?|quotes?|pricing)\b|%", re.I)
 EARN_INTENT = re.compile(r"\b(earn|earns|pay|pays|paying)\b", re.I)   # "what does a 12-month certificate pay?"
 CHARGE_INTENT = re.compile(r"\b(charge|charges|charging)\b", re.I)    # "what are you charging for home loans?"
 # "did the 17-month special go up?" asks about its rate too
@@ -37,6 +37,8 @@ MOVE_INTENT = re.compile(r"\b(go(ne)? up|went up|go(ne)? down|went down|chang\w*
 # "is there a 96-month certificate?": whether a term exists is answered by the rate tables that list the terms
 EXIST_INTENT = re.compile(r"\b(is there|are there|do you (have|offer)|does dupaco (have|offer)|do they (have|offer)|"
                           r"offers?|offered|available)\b", re.I)
+# "how did the regular 36-month Roth IRA compare with the 17-month special?": two terms compared are two rates
+COMPARE_INTENT = re.compile(r"\b(compar\w*|differ\w*|versus|vs\.?|against|stacks? up|measures? up|relative to)\b", re.I)
 # a product NAME that contains "rate" isn't a rate question ("how do I avoid the fee on 1st Rate Checking?")
 RATE_IN_NAME = re.compile(r"\b(1st|first) rate\b", re.I)
 # "the purchase APR, not the intro rate", "the non-jumbo special": a qualifier named only to rule it out doesn't count
@@ -167,6 +169,9 @@ class RateQuery:
     terms: list = field(default_factory=list)   # every term named: "6-month or 24-month?" -> [6, 24]
     top_tier: bool = False   # "the $12,000 APY and the highest tier's threshold": that tier as well
     also_business: bool = False  # "the personal Rewards Visa APR vs the Business Rewards Visa APR": both
+    also_refinance: bool = False  # "how did purchase and refinance quotes compare?": both
+    more_years: list = field(default_factory=list)   # model years after the first ("2022 ... and 2025")
+    term_ends: bool = False       # "the shortest and longest terms": the two ends only
 
     @property
     def generic(self) -> bool:
@@ -305,11 +310,11 @@ def parse_question(question: str) -> Optional[RateQuery]:
     intent = RATE_IN_NAME.sub(" ", ql)
     if not (RATE_INTENT.search(intent) or (family in DEPOSITS and EARN_INTENT.search(ql))
             or (family not in DEPOSITS and CHARGE_INTENT.search(ql)) or MOVE_INTENT.search(ql)
-            or (EXIST_INTENT.search(ql) and Q_TERM.search(ql))):
+            or ((EXIST_INTENT.search(ql) or COMPARE_INTENT.search(ql)) and (Q_TERM.search(ql) or Q_AMOUNT.search(ql)))):
         return None
     names = {n for n, rx in Q_NAMES.get(family, []) if re.search(rx, ql)} or fuzzy_names(family, ql)
     quals = {q for q, rx in Q_QUALS if re.search(rx, NEGATED.sub(" ", ql))}
-    both = "business" in quals and bool(re.search(r"\b(?:personal|consumer)\b", NEGATED.sub(" ", ql)))
+    both = "business" in quals and bool(re.search(r"\b(?:personal|consumer|individuals?)\b", NEGATED.sub(" ", ql)))
     if both:
         quals.discard("business")     # "personal cards as well as business cards": both, the business ones after
     ruled_out = {q for q, rx in Q_QUALS for m in NEGATED.finditer(ql) if re.search(rx, m.group(0))}
@@ -330,12 +335,13 @@ def parse_question(question: str) -> Optional[RateQuery]:
             a += 0.01     # "borrowing more than $300,000" is not in the "$300,000 or less" tier
         amounts.append(a)
     amounts += word_amounts(ql)
-    year = None
+    year, years = None, []
     if family in ("auto", "atv"):         # the model year, not the year of a date ("in late August 2026 ... a 2017 car")
         undated = re.sub(r"\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(?:\d{1,2}(?:st|nd|rd|th)?,?\s+)?"
                          r"20\d\d\b|\b20\d\d-\d\d(?:-\d\d)?\b|\b\d{1,2}/\d{1,2}/20\d\d\b", " ", ql)
-        m = Q_YEAR.search(undated)
-        year = int(m.group(1)) if m else word_year(undated)
+        found = [int(y) for y in Q_YEAR.findall(undated)]
+        year = found[0] if found else word_year(undated)
+        years = found[1:]          # "a 2022 vehicle and a 2025 vehicle": both model years
     # "its MINIMUM opening amount", "the maximum loan amount" name a requirement, not the lowest or highest rate
     plain = re.sub(r"\b(?:minimum|maximum|max|min)\s+(?:(?:opening|initial|required|loan)\s+)?(?:amounts?|deposits?|"
                    r"balances?|opening|to (?:open|earn)|credit|payments?|terms?|ltv)\b"
@@ -351,7 +357,10 @@ def parse_question(question: str) -> Optional[RateQuery]:
         named += ["rate", "dividend"]       # "rate and APR": the nominal rate (or dividend rate) too
     return RateQuery(family, names, quals, term, amounts, year, extreme, float(m.group(1)) if m else None,
                      metrics=tuple(named) or None, kinds=unknown_kinds(ql, family), terms=terms, ruled_out=ruled_out,
-                     top_tier=top_tier, also_business=both)
+                     top_tier=top_tier, also_business=both,
+                     also_refinance=bool("refinance" in quals and re.search(r"\bpurchas\w*", NEGATED.sub(" ", ql))),
+                     more_years=years,
+                     term_ends=bool(re.search(r"\bshortest\b", ql) and re.search(r"\blongest\b", ql)))
 
 
 # ---------------------------------------------------------------- choosing the current table
@@ -442,7 +451,7 @@ def select(pairs, q: RateQuery):
     """-> (main rows, secondary rows) that answer the question."""
     # an "intro" question is also answered by rows that print a promotional rate ("for the 1st 6 months")
     promo = lambda r: "intro" in r.quals or any(k.startswith("promo_") for k in r.rates)
-    required = q.quals - {"arm", "intro"}
+    required = q.quals - {"arm", "intro"} - ({"refinance"} if q.also_refinance else set())
     either = {"roth", "traditional"} if {"roth", "traditional"} <= required else set()   # "Roth and Traditional": both
     pairs = [p for p in pairs if required - either <= p[1].quals and (not either or either & p[1].quals)
              and "arm" not in q.quals and ("intro" not in q.quals or promo(p[1]))]
@@ -451,7 +460,8 @@ def select(pairs, q: RateQuery):
     tagged = []
     for doc, r in pairs:
         unasked = r.quals - q.quals
-        if "refinance" in unasked or ("business" in unasked and not (q.generic or q.also_business)) \
+        if ("refinance" in unasked and not q.also_refinance) or \
+                ("business" in unasked and not (q.generic or q.also_business)) \
                 or r.quals & q.ruled_out:
             continue
         tagged.append((doc, r, bool(unasked & (SECONDARY | {"business"}))))
@@ -460,7 +470,8 @@ def select(pairs, q: RateQuery):
     if q.terms and any(r.term_months is not None for r in rows):
         tagged = [t for t in tagged if t[1].term_months in q.terms]     # "6-month or 24-month": both
     if q.year is not None and any(r.years for r in rows):
-        tagged = [t for t in tagged if t[1].years and t[1].years[0] <= q.year <= t[1].years[1]]
+        asked_years = [q.year] + q.more_years
+        tagged = [t for t in tagged if t[1].years and any(t[1].years[0] <= y <= t[1].years[1] for y in asked_years)]
     tiers = [t for t in tagged if not t[2] and t[1].tier_lo is not None]
     if q.amounts and any(t[1].tier_lo is not None for t in tagged):
         inside = lambda r, a: r.tier_lo is not None and r.tier_lo <= a <= r.tier_hi
@@ -480,6 +491,11 @@ def select(pairs, q: RateQuery):
 
     main = [(d, r) for d, r, sec in tagged if not sec]
     extra = [(d, r) for d, r, sec in tagged if sec]
+    if q.term_ends and main and any(r.term_months for _, r in main):
+        # "the shortest and longest terms": the two ends, not the terms between them
+        terms = [r.term_months for _, r in main if r.term_months]
+        main = [(d, r) for d, r in main if r.term_months in (min(terms), max(terms))]
+        return main, []
     if q.top_tier and tiers:
         # the balance's tier and, besides it, each product's top (bottom) tier: the highest threshold's row
         edge = max if q.extreme == "max" else min
