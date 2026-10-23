@@ -438,6 +438,27 @@ def _order(c: Found):
     return (bool(VARIANT.search(c.topic)), -max(years, default=9999), len(c.values), c.topic)
 
 
+def fold_variants(found: list[Found]) -> list[Found]:
+    """A jumbo / business / refinance / IRA variant that changed in the same table update as its base product
+    ("jumbo special 10-month certificate" with "special 10-month certificate") is part of that contradiction, not
+    a new one: its values join the base entry. A variant whose base didn't change stays on its own."""
+    base = lambda t: re.sub(r"\s+", " ", VARIANT_WORD.sub("", t)).strip().lower()
+    plain = {f.topic.lower(): f for f in found if not VARIANT.search(f.topic)}
+    out = []
+    for f in found:
+        keep = plain.get(base(f.topic)) if VARIANT.search(f.topic) else None
+        if keep is None:
+            out.append(f)
+            continue
+        keep.values = keep.values + [v for v in f.values if v not in keep.values]
+        keep.sources = sorted(set(keep.sources) | set(f.sources))[:8]
+        keep.reason = (keep.reason or "") + f" Same table update also changed: {f.topic}."
+    return out
+
+
+VARIANT_WORD = re.compile(r"\b(?:jumbo|business|refinance|roth|traditional|ira)\s+", re.I)
+
+
 def find_conflicts(snaps) -> list[Found]:
-    found = merge_twins(rate_conflicts(snaps)) + text_conflicts(snaps[-1]) + page_changes(snaps)
+    found = fold_variants(merge_twins(rate_conflicts(snaps))) + text_conflicts(snaps[-1]) + page_changes(snaps)
     return sorted(found, key=_order)
