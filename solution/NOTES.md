@@ -4,8 +4,8 @@
 
 - Python 3.9+ (tested on 3.11), **standard library only**. No API keys, no network calls, no LLM.
 - `answer()` accepts `as_of` as an ISO date or datetime, "2026-05", "May 2026" or "05/31/2026"; an unreadable date means the latest download. An unexpected error is answered with "I don't know" instead of crashing.
-- Ingesting the 5 snapshots takes about 18 s, including the merged companion runtime. Answers take 0.09 s at p95
-  (0.1 s max) on the public file.
+- Ingesting the 5 snapshots takes about 18 s, including the merged companion runtime. Answers take 0.08 s at p95
+  on the public file.
 - An impossible date ("2035-02-31", "February 30, 2035") is declined instead of silently answering from the latest download.
 
 ## Pipeline
@@ -112,7 +112,7 @@ Otherwise the system answers with what the site says. Refusals contain no number
 | `eval/public_eval.jsonl` | **0.969** total, 0 stale-trap hits, consistency 1.0, speed 1.0. The only miss, `dup-005`, has no `must_include` and can't be scored without the LLM judge, so 0.969 is the most this file allows. |
 | harness self-test (5 questions + 1 conflict) | 1.0 |
 | `tests/sim_eval.jsonl`, our 330-question stand-in for the hidden set | 0.9628 total (accuracy 0.969, consistency 0.963) |
-| `tests/run_checks.py` | 240/240 |
+| `tests/run_checks.py` | 254/254 |
 
 The stand-in set holds every public question with six rewordings, "as of" questions on rate rows that changed, current values of changed facts, change questions and refusals.
 
@@ -121,29 +121,28 @@ The stand-in set holds every public question with six rewordings, "as of" questi
 | suite | count |
 |---|---|
 | paraphrases (set A tuned on; set B written fresh) | 59 |
-| paired controls: each rule learned from a bank, in words no bank uses, in an equivalent and a minimally changed form | 74 |
+| paired controls: each rule learned from a bank, in words no bank uses, in an equivalent and a minimally changed form | 80 |
 | review cases | 33 |
 | synthetic snapshots | 4 |
-| mutations (one rule, one changed input) | 11 |
+| mutations (one rule, one changed input), including the scenarios of the 2026-10-23 code review | 19 |
 | determinism across two hash seeds | 59 |
 
 On **eleven agent-written banks** from four authors (about 1,400 items; organizer harness unchanged; holdout and confirmation banks run for aggregates only and never opened):
 
 | bank | dev | blind |
 |---|---:|---:|
-| our independent author (226 / 176) | 0.874 | 0.765 |
-| companion repository, km226 | 0.701 | - |
-| legacy509 (333 / 176) | 0.855 | 0.576 |
+| our independent author (226 / 176) | 0.874 | 0.785 |
+| companion repository, km226 | 0.744 | - |
+| legacy509 (333 / 176) | 0.865 | 0.628 |
 | author A (100 / 60) | 0.817 | 0.584 |
-| author B (30 / 42) | 0.537 | 0.300 |
-| author C (36 / 36) | 0.941 | 0.478 |
+| author B (30 / 42) | 0.542 | 0.300 |
+| author C (36 / 36) | 0.941 | 0.569 |
 
-The companion repository's Parent45e1 mechanism suites (35 tests on made-up banks) pass 31. The four misses:
+A **fresh blind set** written last (172 questions, one run per version, aggregates only): 0.828 total
+(accuracy 0.875, consistency 0.886, conflict F1 0.57), against 0.775 for the companion runtime alone.
 
-- two policy differences, both kept here by the owner's decision: a true tie, and a date before the first
-  download. Both are switches, `KB_TIE=decline` and `KB_BEFORE_FIRST=decline`; with both on, 33 pass;
-- one wording requirement;
-- one semantic gap.
+The companion repository's Parent45e1 mechanism suites (35 tests on made-up banks) pass 33. The two misses are
+one wording requirement and one semantic gap.
 
 How these numbers moved commit by commit, what was tried and rejected, a same-bank comparison with the companion system, the method, and what transfers to unseen questions are in `docs/ITERATIONS.md`, `docs/REPORT.md`, `docs/METHODOLOGY.md` and `docs/GENERALIZATION.md`.
 

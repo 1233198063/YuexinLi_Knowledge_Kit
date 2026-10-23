@@ -117,13 +117,35 @@ adding score. The organizer's synthetic self-test is 1.0 for both.
    don't decline answerable questions in other words. A yes/no coverage guard that did so was measured and removed.
 6. **Keep a final holdout that nobody has looked at**, written after the code freeze, for the last claim.
 
-## 8. Measured policy choices left to the owner
+## 8. Policy choices, measured, then decided by the owner
 
-| switch | default (owner's decision) | alternative | effect of the alternative |
+| switch | default (owner's decision, 2026-10-23) | alternative | effect of the default when it was measured as the alternative |
 |---|---|---|---|
-| `KB_BEFORE_FIRST` | answer a date before the first download from the earliest copy, with a note | decline | km226 +0.020, legacy-dev +0.007, blind C-confirm +0.056 (0.468 → 0.524), rest equal; the companion's temporal suite then passes 19/19 |
-| `KB_TIE` | show both values of a true tie, with a note | decline | no bank changes (the real data has no true ties); the companion's tie control passes |
+| `KB_BEFORE_FIRST` | decline a date before the first download | `earliest`: answer from the earliest copy, with a note (the 2026-10-20 decision) | km226 +0.020, legacy-dev +0.007, blind C-confirm +0.056 (0.468 → 0.524), rest equal; the companion's temporal suite passes 19/19 |
+| `KB_TIE` | decline a true tie | `both`: show both values, with a note | no bank changes (the real data has no true ties); the companion's tie control passes |
 
-Three independent authors expect a date before the first download to be declined, and the scoring rule gives
-credit to "I don't know" when the site doesn't say. The alternative is the measured better choice. It changes an
-earlier decision by the owner, so it stays a switch until the owner decides.
+Three independent authors expected a date before the first download to be declined, and the scoring rule gives
+credit to "I don't know" when the site doesn't say. The owner chose to decline in both cases. The switches stay,
+so the earlier behaviour can still be measured.
+
+## 9. Judging a merge between two systems
+
+The fresh blind set (REPORT §5.3) gave one more data point, and it cuts against this repository's own habit.
+
+- **Before:** the companion's handlers were admitted one by one, on the dev banks outside the companion's tuning
+  bank. Eight passed.
+- **The neutral set disagreed.** Every handler module (D) beat the eight (B) on the fresh set: 0.836 against
+  0.819 total.
+- **The refinement went back towards the dev banks.** D broke nine paired controls, and on B-dev its broad modules
+  answered FAQ questions with a product's rate table. Restricting them, and making them compete on coverage, raised
+  every dev bank and left the blind banks no lower. On the fresh set it cost about two of 172 questions (0.836 →
+  0.828; one descriptive run, decided nothing).
+
+The dev banks are not neutral judges of a merge. This system was tuned on them, so its answers fit them, and any
+answer from another system loses ties it might win elsewhere. The companion's own process makes the same point
+from its side: km226 scores it 0.979 and every other bank much lower.
+
+Rule taken from this: **a merge is judged on banks neither system was tuned on.** Fixes for faults the coder can
+see (a rate table answering an FAQ question, a broken control) are still made, but their size should be measured
+there too, not on the banks that already favour one side. Here no unused neutral set remained to measure the
+final refinement on; that measurement is the open item.

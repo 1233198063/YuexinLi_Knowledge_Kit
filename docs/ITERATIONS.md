@@ -49,7 +49,8 @@ The columns show accuracy (the harness `qa_score`). The banks are described in �
 | `196c068` every snapshot, newest band, rate sheet | 0.969 | 0.867 | 0.700 | 0.800 | 0.817 | 0.537 | 0.941 | 0.761 | 0.577 | 0.580 | 0.300 | 0.478 |
 | `0f89a2d` places, zero tiers, wrapped lines | 0.969 | 0.874 | 0.700 | 0.800 | 0.817 | 0.537 | 0.941 | 0.765 | 0.576 | 0.584 | 0.300 | 0.478 |
 | `0f16e25` the asked metric next to "High-Yield" | 0.969 | 0.874 | 0.700 | 0.812 | 0.817 | 0.537 | 0.941 | 0.765 | 0.576 | 0.584 | 0.300 | 0.478 |
-| `2980092` minimum to open, exclusions (current) | 0.969 | 0.874 | 0.701 | 0.855 | 0.817 | 0.537 | 0.941 | 0.765 | 0.576 | 0.584 | 0.300 | 0.478 |
+| `2980092` minimum to open, exclusions | 0.969 | 0.874 | 0.701 | 0.855 | 0.817 | 0.537 | 0.941 | 0.765 | 0.576 | 0.584 | 0.300 | 0.478 |
+| `28e3d69` **broad companion modules, weighed; review fixes** (final) | 0.969 | 0.874 | 0.744 | 0.865 | 0.817 | 0.542 | 0.941 | **0.785** | **0.628** | 0.584 | 0.300 | **0.569** |
 
 Commits that only touched tests or docs are left out, as are runs with identical scores (`b17b9fe`, `bdd8e5b`,
 `51ddee3`, `51bbd72`, `f576948`). Raw outputs are kept outside the repository: they contain snapshot text.
@@ -244,15 +245,47 @@ The commits:
 
   legacy-dev .812 → .855, while its blind holdout stayed equal. The dev gain came from templated items, one
   question pattern repeated for several products. See GENERALIZATION §1.
+- **Fresh blind set** (2026-10-23, §3). A new author session wrote a set neither system had seen. Four variants
+  were pre-registered and each was run once ([FRESH-PREREGISTRATION.md](FRESH-PREREGISTRATION.md)). By the rule
+  fixed in advance, D (every companion handler module) replaced B (the eight evidence-chosen handlers).
+- `28e3d69` **the companion's broad modules, weighed; the review fixes**:
+  - *Refining D without the fresh set.* D's broad modules broke nine paired controls (routing FAQ, hours, branch
+    status, cashier's check, museum, LPL). They now answer only open answer kinds, and never through the
+    companion's facts module or the general part of its services module.
+  - *Its broad modules answered FAQ questions with a product's rate table.* B-dev fell .537 → .477 with the first
+    refinement alone. Examples: the HSA's authorized-user rules, the IRA contribution cap, a loan's example monthly
+    payment, a HELOC's qualifying score, an account's initial deposit. An absolute coverage threshold fixed B-dev
+    but cut correct enumeration answers on km226 ("list every loan category"), because a list of names doesn't
+    repeat the question's words. The rule kept has no threshold. When only a broad module answered, this system
+    answers too, and the answer holding more of the question's specific non-product words wins, ties going to the
+    companion. This follows the companion repository's own finding that "a trigger match, a number or confident
+    is not a completion proof".
+  - *Owner's decisions of 2026-10-23.* A true tie and a date before the first download are both declined.
+  - *The seven issues of the 2026-10-23 code review*, each with a regression test that fails on the previous
+    commit and passes now, beside a minimally changed counterpart that passes on both:
+    1. an excluded product ("..., not Bright Savings") decided the product;
+    2. two products in one question were merged, and one's term was read as the other's;
+    3. a promo column was filled in from a table not yet in effect;
+    4. the companion got the explicit `as_of` but not a date written in the question;
+    5. of two balances, only the first got its tier;
+    6. two unrelated products that swapped the same two numbers were merged into one conflict, and a folded
+       variant lost its own resolution;
+    7. a "has it changed?" answer cited only the current download.
+
+  Dev: B-dev .537 → .542, legacy-dev .855 → .865, km226 .701 → .744; ours-dev, A-dev and C-dev equal. Blind, run
+  once: ours-holdout .765 → .785, legacy-holdout .576 → .628, C-confirm .478 → .569, A and B confirmation equal.
+  The fix commits alone left every blind bank equal (two gate runs, before and after them). On the fresh set the
+  final version scored .828 total, against D's .836 (one descriptive run, decided nothing; REPORT §5.3).
 
 ### Decisions left to the owner
 
-Two policies differ from the companion repository's tests, and the owner decides them:
+The owner decided both policies where the companion repository's tests expected the other choice, on 2026-10-23:
 
-1. **A true tie.** Two equally trusted pages, dated the same day, print different numbers. Here both values are
-   shown with a note; the companion repository declines.
-2. **A date before the first download.** Here the earliest copy answers with a note, by the owner's decision of
-   2026-10-20; the companion repository declines.
+1. **A true tie.** Two equally trusted pages, dated the same day, print different numbers. The answer declines:
+   the site doesn't say which is current, and showing both prints a wrong value (`KB_TIE=both` restores both
+   values with a note).
+2. **A date before the first download.** Declined: no copy of the website from then exists. This replaces the
+   2026-10-20 decision to answer from the earliest copy with a note (`KB_BEFORE_FIRST=earliest` restores it).
 
 A third difference concerns snapshots that are complete replacements (a page missing from one means it was
 removed). This system carries a missing page forward, by the owner's decision of 2026-10-20.
@@ -318,6 +351,22 @@ previous runtime it was a net complete-correct change of zero.
   - source occurrences: 9/14;
   - typed optional fields: 14/38.
 
+**Close (2026-10-23).**
+
+- **Its anti-overfit harness went through two versions.** v2a was rejected after an independent path review
+  (integrity defects in how state and paths were handled). v2b was approved after a second review, and StageA was
+  reopened under a candidate-specific v2b gate.
+- **StageA `309afc`, the only implementation under v2b,** added a typed request → claim → render → completion
+  module for routing and HELOC and left the 13 other modules byte-identical. Its single developer run failed:
+  61/90 controls passed and 29 failed, 28 of them card groups outside its scope. Under the gate's rule, a failure
+  rejects the hash and the heldback set is never read. Independently, public fell from 0.9690 to 0.9302 and the
+  disclosed development Total from 0.9704 to 0.9641. It was archived without a patch or a second hash.
+- **The final selection stays `2d6b8d6e`** (package `bde84baf…`). Its periodic reviewer was stopped and the
+  superseded round-1 archive was published.
+- **Relevance here.** The merged copy in `solution/companion/` is byte-identical to that final selection.
+  Nothing in the close changed runtime code, so there was nothing new to merge. The rejected candidate's lesson
+  matches this repository's: a typed completion layer must not cost entity attribution elsewhere.
+
 ## 3. Test layers, and where each one runs here
 
 | layer | origin | here | result now |
@@ -326,18 +375,19 @@ previous runtime it was a net complete-correct change of zero.
 | organizer selftest 5 + 1 conflict | kit | scoreboard | 1.0 |
 | stand-in hidden set, 330 questions | this repo (`tests/build_sim_eval.py`) | scoreboard | 0.9628 total |
 | paraphrases A 29 / B 30 | this repo | `tests/run_checks.py` | 59/59 |
-| review cases 33 | external code review | run_checks | 33/33 |
-| synthetic snapshots 4, mutations 11 | this repo | run_checks | 15/15 |
-| paired controls 43 | this repo, after the companion's gate | run_checks | 43/43 |
+| review cases 33 | external code reviews | run_checks | 33/33 |
+| synthetic snapshots 4, mutations 19 (8 from the 2026-10-23 review) | this repo | run_checks | 23/23 |
+| paired controls 80 | this repo, after the companion's gate | run_checks | 80/80 |
 | determinism across two hash seeds | this repo | run_checks | 59/59 |
-| ours-dev 226 / ours-holdout 176 | our independent test author | `tests/banks.py` | 0.856 / 0.757 (holdout blind) |
-| km226 + 16-topic conflict proxy | companion | banks | 0.673 |
-| legacy509 dev 333 / holdout 176 | companion, round 1 | banks | 0.800 / 0.577 (blind) |
-| A dev 100 / confirm 60 | companion, round 2 | banks | 0.741 / 0.498 (blind) |
-| B dev 30 / confirm 42 | companion, round 2 | banks | 0.274 / 0.251 (blind) |
-| C dev 36 / confirm 36 | companion, round 3 | banks | 0.909 / 0.468 (blind) |
+| ours-dev 226 / ours-holdout 176 | our independent test author | `tests/banks.py` | 0.874 / 0.785 (holdout blind) |
+| km226 + 16-topic conflict proxy | companion | banks | 0.744 |
+| legacy509 dev 333 / holdout 176 | companion, round 1 | banks | 0.865 / 0.628 (blind) |
+| A dev 100 / confirm 60 | companion, round 2 | banks | 0.817 / 0.584 (blind) |
+| B dev 30 / confirm 42 | companion, round 2 | banks | 0.542 / 0.300 (blind) |
+| C dev 36 / confirm 36 | companion, round 3 | banks | 0.941 / 0.569 (blind) |
+| fresh blind set 172 + conflict gold | a new author session, 2026-10-23 | `tests/fresh_once.py`, one run per version | 0.828 total (variant D 0.836, companion alone 0.775) |
 | program status 48, source planner 25 | companion, round 3 | `tests/knowledge_main/run.py` | 8/48, 11/14 applicable (diagnostic) |
-| Parent45e1 custody 35 | companion, round 3 | knowledge_main/run.py | 31/35 (33/35 with both policy switches) |
+| Parent45e1 custody 35 | companion, round 3 | knowledge_main/run.py | 33/35 (both policies now decline by the owner's decision) |
 | request-evidence developer controls 90 | companion, follow-up | by hand (see MANIFEST) | 0/90 (diagnostic of answer form) |
 | fee 19, percent display 7, narrative 16 | companion | not applicable | they unit-test that runtime's own modules |
 | provenance 14, typed fields 38 | companion | not copied | they read that runtime's internals |

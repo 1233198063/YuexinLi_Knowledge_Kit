@@ -134,6 +134,16 @@ download still exists; whether a tie shows both values; whether a date before th
 - **Once a blind set has been used to choose between versions, it is partly spent.** Say so, and get a fresh one
   for the final claim. The companion's rule goes further: a held-set failure rejects that exact version, and it
   is never patched against the same set.
+- **Pre-register the comparison on a fresh set, and let the tool enforce it.** Here the variants and the decision
+  rule were written down before any result (`docs/FRESH-PREREGISTRATION.md`). `tests/fresh_once.py` logs a START
+  line before importing a version and refuses a second run of the same source hash. One extra run was added by a
+  written amendment before it ran, and it decided nothing.
+- **Judge a merge between two systems on banks neither was tuned on.** Banks one side tuned on favour that side's
+  answers. Here they favoured restricting the merged system, while the neutral set favoured more of it
+  (GENERALIZATION §9).
+- **A regression test should fail on the old code.** Each fix from the last code review got a test, and the test
+  was run against the previous commit to show it fails there, while a minimally changed counterpart passes on
+  both.
 
 ## 8. Pitfalls met along the way
 
