@@ -593,8 +593,10 @@ def search(view, question: str, idf: dict, today: date, defs: Optional[dict] = N
                 if 0 <= j < len(ch.sents):
                     near |= q & ch.sents[j][1]
             own |= q & ch.sect_terms          # its own section title ("You're Eligible to Join ...") counts fully
-            own_w = sum(idf.get(t, 0.0) for t in own)
-            score = own_w + 0.5 * sum(idf.get(t, 0.0) for t in (head | near) - own)   # page title, neighbours: half
+            # sums over sets are rounded: float addition in a set's (per-run random) order would otherwise break
+            # ties differently from one run to the next
+            own_w = round(sum(idf.get(t, 0.0) for t in sorted(own)), 6)
+            score = round(own_w + 0.5 * sum(idf.get(t, 0.0) for t in sorted((head | near) - own)), 6)  # title, neighbours: half
             if products and not products & (own | head | near):
                 score *= 0.5
             cta = bool(CTA.match(visible)) and pattern not in (URL, PHONE)
@@ -608,7 +610,7 @@ def search(view, question: str, idf: dict, today: date, defs: Optional[dict] = N
     if pattern is TIME and about:
         # a branch's hours are a schedule block under "The phone number for the Mineral Point Road branch is ...
         # Branch hours are:" in its opening release; the release as a whole is about that branch
-        key = max(about, key=lambda t: idf.get(t, 0.0))
+        key = max(about, key=lambda t: (idf.get(t, 0.0), t))
         on_page = {id(d): any(key in ch.terms for ch in d.chunks) for d in {id(c[1]): c[1] for c in cands}.values()}
         sched = [(c, schedule_block(c[1], c[2], c[3])) for c in cands if on_page[id(c[1])]]
         sched = [(c, s) for c, s in sched if TIME.search(s)]
@@ -623,7 +625,7 @@ def search(view, question: str, idf: dict, today: date, defs: Optional[dict] = N
             # text about the thing asked: the candidates mentioning the most of its words ("Pennsylvania Avenue
             # ... Dubuque"); and when the question also names a product ("Visa Signature CARD"), text about that
             # product, not a news story that happens to say "Signature"
-            key = max(about, key=lambda t: idf.get(t, 0.0))      # its most specific word must be there ("Mullan")
+            key = max(about, key=lambda t: (idf.get(t, 0.0), t))      # its most specific word must be there ("Mullan")
             cands = [c for c in cands if mentions(c, key, acronyms, abbrev=True)]
             count = {id(c): sum(mentions(c, t, acronyms, abbrev=True) for t in about) for c in cands}
             top = max(count.values(), default=0)
@@ -640,7 +642,7 @@ def search(view, question: str, idf: dict, today: date, defs: Optional[dict] = N
             # an amount, rate or cutoff must be the one asked about: the "lost debit card REPLACEMENT" fee, the
             # "AUTO INSURANCE" premium (two words for an amount), the "EUROS" exchange rate, the WIRE cutoff - not
             # some other fee, rate or deadline. If no text has them, the site doesn't say
-            keys = sorted(q - shape - SHAPE_WORDS, key=lambda t: -idf.get(t, 0.0))[:2 if pattern is MONEY else 1]
+            keys = sorted(q - shape - SHAPE_WORDS, key=lambda t: (-idf.get(t, 0.0), t))[:2 if pattern is MONEY else 1]
             cands = [c for c in cands if all(mentions(c, k, acronyms | {k}) for k in keys)]
         typed = [c for c in cands if pattern.search(compose(c[2], c[3]))]
         if not typed and pattern is DATE:   # a news release about the event is dated even if its text isn't
@@ -657,12 +659,12 @@ def search(view, question: str, idf: dict, today: date, defs: Optional[dict] = N
         rest = q - SHAPE_WORDS - AMOUNT_WORDS - about
         if rest and pattern is not MONEY:
             # prefer text holding the question's most specific other word ("STOLEN card" -> ext. 201, not ext. 204)
-            key = max(rest, key=lambda t: idf.get(t, 0.0))
+            key = max(rest, key=lambda t: (idf.get(t, 0.0), t))
             typed = [c for c in typed if key in context(c)] or typed
         cands = typed
     elif about and (names or acronyms):
         # no answer shape to check, but the question names something ("VTO usage last year?"): text about it
-        key = max(about, key=lambda t: idf.get(t, 0.0))
+        key = max(about, key=lambda t: (idf.get(t, 0.0), t))
         cands = [c for c in cands if mentions(c, key, acronyms, abbrev=True)] or cands
     if not cands:
         return None

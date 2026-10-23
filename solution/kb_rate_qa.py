@@ -147,6 +147,59 @@ class RateQuery:
         return not self.names and not self.terms and not self.amounts and self.year is None
 
 
+SMALL = {**WORDNUM, "eleven": 11, "thirteen": 13, "fourteen": 14, "sixteen": 16, "seventeen": 17, "eighteen": 18,
+         "nineteen": 19, "forty": 40, "fifty": 50, "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90,
+         "a": 1, "an": 1, "hundred": 100}
+FRACTION = {"quarter": 0.25, "half": 0.5, "three-quarter": 0.75, "three quarter": 0.75, "three-quarters": 0.75}
+
+
+def word_amounts(ql: str) -> list:
+    """Amounts written in words: 'seven grand' 7,000; 'nine thousand bucks' 9,000; 'twenty-five thousand'
+    25,000; 'three-quarter-million-dollar' 750,000; 'half a million' 500,000; 'a million' 1,000,000."""
+    out, taken = [], []
+    for m in re.finditer(r"\b(three[- ]quarters?|quarter|half)(?:[- ](?:of[- ])?an?)?[- ]million\b", ql):
+        out.append(FRACTION[m.group(1).replace("quarters", "quarter")] * 1_000_000)
+        taken.append(m.span())
+    num = r"(\d+(?:\.\d+)?|(?:" + "|".join(SMALL) + r")(?:[- ](?:" + "|".join(SMALL) + r"))?)"
+    for m in re.finditer(num + r"[- ](grand|thousand|k|million)\b", ql):
+        if any(a <= m.start() < b for a, b in taken):
+            continue          # "half a million" is not also "a million"
+        words = re.split(r"[- ]", m.group(1))
+        n = float(m.group(1)) if m.group(1)[0].isdigit() else sum(SMALL[w] for w in words if w in SMALL)
+        if m.group(1) in ("a", "an") and m.group(2) != "million":
+            continue
+        out.append(n * (1_000_000 if m.group(2) == "million" else 1_000))
+    return out
+
+
+def word_year(ql: str) -> Optional[int]:
+    """Model years written another way: "a '26 car" 2026; "twenty-twenty-five" 2025."""
+    m = re.search(r"['’](\d{2})\b", ql)
+    if m:
+        return 2000 + int(m.group(1))
+    m = re.search(r"\btwenty[- ]twenty(?:[- ](one|two|three|four|five|six|seven|eight|nine))?\b", ql)
+    if m:
+        return 2020 + (WORDNUM.get(m.group(1), 0) if m.group(1) else 0)
+    return None
+
+
+# product names members misspell ("brite savings", "launch pad savings"): the word right before the product noun,
+# if it is close to a name keyword ("right now" is not "bright": it isn't followed by "savings")
+FUZZY = {"savings": ({"bright": "bright savings", "launchpad": "launchpad savings", "holiday": "holiday club"},
+                     r"savings|club|account"),
+         "money_market": ({"investor": "investor's choice", "achieve": "achieve"}, r"choice|money market"),
+         "credit_card": ({"platinum": "platinum visa", "rewards": "rewards visa"}, r"visa|card")}
+
+
+def fuzzy_names(family: str, ql: str) -> set:
+    import difflib
+    targets, nouns = FUZZY.get(family, ({}, None))
+    if not nouns:
+        return set()
+    words = re.findall(rf"\b([a-z][a-z']{{3,}})\s+(?:{nouns})\b", ql.replace("launch pad", "launchpad"))
+    return {targets[t] for w in words for t in difflib.get_close_matches(w, list(targets), n=1, cutoff=0.7)}
+
+
 def _amount(num: str, unit: Optional[str]) -> float:
     v = float(num.replace(",", ""))
     u = (unit or "").lower()
@@ -207,7 +260,7 @@ def parse_question(question: str) -> Optional[RateQuery]:
     if not (RATE_INTENT.search(intent) or (family in DEPOSITS and EARN_INTENT.search(ql))
             or (family not in DEPOSITS and CHARGE_INTENT.search(ql)) or MOVE_INTENT.search(ql)):
         return None
-    names = {n for n, rx in Q_NAMES.get(family, []) if re.search(rx, ql)}
+    names = {n for n, rx in Q_NAMES.get(family, []) if re.search(rx, ql)} or fuzzy_names(family, ql)
     quals = {q for q, rx in Q_QUALS if re.search(rx, NEGATED.sub(" ", ql))}
     ruled_out = {q for q, rx in Q_QUALS for m in NEGATED.finditer(ql) if re.search(rx, m.group(0))}
     if re.search(r"\b(standard|regular|ordinary|normal|non-?jumbo)\b", ql):
@@ -223,17 +276,19 @@ def parse_question(question: str) -> Optional[RateQuery]:
         if re.search(r"\b(more than|over|above|greater than|exceeding|bigger than)\s*$", ql[:m.start()]):
             a += 0.01     # "borrowing more than $300,000" is not in the "$300,000 or less" tier
         amounts.append(a)
+    amounts += word_amounts(ql)
     year = None
     if family in ("auto", "atv"):         # the model year, not the year of a date ("in late August 2026 ... a 2017 car")
         undated = re.sub(r"\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(?:\d{1,2}(?:st|nd|rd|th)?,?\s+)?"
                          r"20\d\d\b|\b20\d\d-\d\d(?:-\d\d)?\b|\b\d{1,2}/\d{1,2}/20\d\d\b", " ", ql)
         m = Q_YEAR.search(undated)
-        year = int(m.group(1)) if m else None
+        year = int(m.group(1)) if m else word_year(undated)
     extreme = "max" if MAX_WORDS.search(ql) else "min" if MIN_WORDS.search(ql) else None
     if extreme is None and BEST.search(ql):
         extreme = "max" if family in DEPOSITS else "min"      # best savings rate = highest, best loan rate = lowest
     m = Q_PCT.search(ql)
-    named = [k for metric, rx in Q_METRICS if re.search(rx, ql) for k in METRIC_KEYS[metric]]
+    asked = NEGATED.sub(" ", ql)          # "the APY, not the dividend rate": only the APY is asked
+    named = [k for metric, rx in Q_METRICS if re.search(rx, asked) for k in METRIC_KEYS[metric]]
     if named and plain_rate_asked(ql):
         named += ["rate", "dividend"]       # "rate and APR": the nominal rate (or dividend rate) too
     return RateQuery(family, names, quals, term, amounts, year, extreme, float(m.group(1)) if m else None,
@@ -395,7 +450,7 @@ METRIC_WORDS = {"apy": r"APY|annual percentage yield", "apr": r"APR|annual perce
 
 
 def asked_metrics(question: str) -> set:
-    ql = question.lower()
+    ql = NEGATED.sub(" ", question.lower())
     return {m for m, rx in Q_METRICS if re.search(rx, ql)} | ({"rate"} if plain_rate_asked(ql) else set())
 
 

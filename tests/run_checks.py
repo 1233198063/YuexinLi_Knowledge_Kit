@@ -12,6 +12,7 @@ Regression checks beyond the public eval. Run from the kit's top folder:
                 download, a removed fee row, an expired offer, a stale calculator.
 Exit code 1 if anything fails.
 """
+import json
 import re
 import sys
 from pathlib import Path
@@ -257,10 +258,29 @@ def check_mutations():
     return "MUTATIONS", len(cases) - len(bad), len(cases), bad
 
 
+def check_determinism():
+    """The same question must get the same answer in every run. Python randomises set order per process
+    (PYTHONHASHSEED), so any tie broken by set order would differ between runs: answer the paraphrase battery in
+    two processes with different seeds and compare the texts."""
+    import os
+    import subprocess
+    code = ("import json, sys; sys.path[:0] = ['solution', 'harness']; sys.stdout.reconfigure(encoding='utf-8');"
+            "from inspect_kb import load; kb = load();"
+            "qs = json.loads(sys.stdin.read()); print(json.dumps([kb.answer(q).text for q in qs]))")
+    qs = [q for q, _ in TUNED + FRESH]
+    outs = []
+    for seed in ("1", "2"):
+        p = subprocess.run([sys.executable, "-c", code], input=json.dumps(qs), capture_output=True, text=True,
+                           encoding="utf-8", cwd=ROOT, env=dict(os.environ, PYTHONHASHSEED=seed))
+        outs.append(json.loads(p.stdout.strip().splitlines()[-1]))
+    bad = [f"{q}  ->  answers differ between runs" for q, a, b in zip(qs, *outs) if a != b]
+    return "DETERMINISM (2 seeds)", len(qs) - len(bad), len(qs), bad
+
+
 def main():
     kb = load()
     results = [check_paraphrases(kb, "A (tuned)", TUNED), check_paraphrases(kb, "B (fresh)", FRESH),
-               check_review(kb), check_synthetic(), check_mutations()]
+               check_review(kb), check_synthetic(), check_mutations(), check_determinism()]
     failed = 0
     for name, ok, total, bad in results:
         print(f"{name:24s} {ok}/{total}")

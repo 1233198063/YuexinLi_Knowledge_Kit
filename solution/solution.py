@@ -105,7 +105,11 @@ def split_question(question: str) -> list:
         return [question]
     first = parts[0]
     names = re.findall(r"(?<!^)(?<![.?!]\s)\b[A-Z][\w'’$-]+(?:\s+[A-Z][\w'’$-]+)*", first)
-    subject = " ".join(dict.fromkeys(" ".join(names + [m.group(0) for m in SUBJECT_NOUN.finditer(first)]).split()))
+    # its amounts and terms too: "I have exactly $100,000 for the 17-month special. Which tier applies, and what APY
+    # ...?" - the second clause asks about $100,000. Not years: a date is read from the whole question already
+    figures = re.findall(r"\$\s?\d[\d,]*(?:\.\d+)?k?|\b\d+[- ](?:month|year|yr)s?\b", first, re.I)
+    subject = " ".join(dict.fromkeys(" ".join(names + [m.group(0) for m in SUBJECT_NOUN.finditer(first)]
+                                              + figures).split()))
     return [first + "?"] + [f"{p}? ({subject})" if subject else p + "?" for p in parts[1:]]
 
 
