@@ -2,37 +2,43 @@
 
 This report merges three earlier write-ups: the independent-test results, the study of the companion repository,
 and the bank results. It is written for reviewers of this assessment. Iteration details are in
-[ITERATIONS.md](ITERATIONS.md), the process in [METHODOLOGY.md](METHODOLOGY.md), and the system's rules in
-[../solution/NOTES.md](../solution/NOTES.md).
+[ITERATIONS.md](ITERATIONS.md), the process in [METHODOLOGY.md](METHODOLOGY.md), the overfitting study in
+[GENERALIZATION.md](GENERALIZATION.md), and the system's rules in [../solution/NOTES.md](../solution/NOTES.md).
 
 ## 1. Summary
 
-- **This system:** standard-library Python, no model, no network.
+- **This system:** standard-library Python, no model, no network. It merges the companion runtime as a
+  specialist for eight kinds of page (§6).
   - Public 0.969, which is the file's ceiling without its LLM judge, with 0 stale-trap hits.
   - Harness self-test 1.0.
-  - Answer p95 0.07 s; ingest 6.9 s; 36 conflicts listed.
+  - Answer p95 0.09 s; ingest 18 s; 36 conflicts listed.
 - **Independent banks.** Eleven agent-written question banks from four authors and two processes, about 1,400
   items. Accuracy now, against the first solution:
 
   | bank | first solution → now |
   |---|---|
-  | our own independent holdout (blind) | 0.642 → **0.750** |
-  | legacy holdout (blind) | 0.189 → **0.570** |
-  | C confirmation (blind) | 0.266 → **0.349** |
-  | B confirmation (blind) | 0.170 → **0.237** |
+  | our own independent holdout (blind) | 0.642 → **0.757** |
+  | legacy holdout (blind) | 0.189 → **0.577** |
+  | C confirmation (blind) | 0.266 → **0.468** |
+  | B confirmation (blind) | 0.170 → **0.251** |
   | A confirmation (blind) | 0.502 → **0.498** (flat) |
-  | development banks | gains of +0.02 (A) to +0.43 (C) each |
+  | development banks | gains of +0.02 (A) to +0.50 (C) each |
 
 - **Against the companion system** on the same banks with the same harness, each system is stronger on the banks
   its own process tuned on.
-  - The fairest blind comparison is a mixed picture: we lead on our own holdout (0.750 against 0.686), it leads
-    clearly on C confirmation (0.778 against 0.349).
-  - Neither dominates, and the gaps point at specific mechanisms (§5).
-- **Method.** The most valuable things taken from the companion repository were process rather than code:
+  - The fairest blind comparison is a mixed picture. Before the merge, we led on our own holdout (0.750 against
+    0.686) and it led clearly on C confirmation (0.778 against 0.349).
+  - The gaps pointed at specific mechanisms (§5). Taking its winning mechanisms and handlers closed part of the
+    C gap: our C confirmation is now 0.468.
+- **Method.** The most valuable things taken from the companion repository were process:
   - independent test authors with blind holdouts;
   - mechanism suites on made-up data;
   - an anti-overfit gate with paired controls;
   - rejecting changes that raise one score while adding a wrong claim.
+
+  After that came a merge chosen by out-of-sample evidence, handler by handler. Scorer-derived rules and
+  evidence-chosen merges carried 82% or more of their dev gain over to the blind banks; fixes driven by single
+  items carried 3% to 33% ([GENERALIZATION.md](GENERALIZATION.md)).
 
 ## 2. The task and how it is scored
 
@@ -55,7 +61,8 @@ detail.
 
 ## 3. The two systems
 
-**This system** (`solution/`, 9 modules, about 3,200 lines):
+**This system** (`solution/`, 10 modules and about 3,500 lines of its own, plus the merged companion runtime in
+`solution/companion/`):
 
 1. It cleans each page.
 2. It keeps every snapshot as a view of the site on its date.
@@ -132,24 +139,27 @@ Both were run with the unchanged harness, the same snapshots and the same synthe
 
 | bank (items) | who tuned on it | this system | companion `2d6b8d6e` |
 |---|---|---:|---:|
-| ours-dev (226) | us | **0.827** | 0.678 (2 errors) |
-| ours-holdout (176), blind for both | nobody | **0.750** | 0.686 |
-| km226 (226) | companion | 0.595 | **0.979** (2 errors) |
-| legacy-dev (333) | companion | **0.775** | 0.652 |
-| legacy-holdout (176) | companion, round 1 | 0.570 | **0.769** |
+| ours-dev (226) | us | **0.856** | 0.678 (2 errors) |
+| ours-holdout (176), blind for both | nobody | **0.757** | 0.686 |
+| km226 (226) | companion | 0.673 | **0.979** (2 errors) |
+| legacy-dev (333) | companion | **0.800** | 0.652 |
+| legacy-holdout (176) | companion, round 1 | 0.577 | **0.769** |
 | A-dev (100) | companion; us since its release | **0.741** | 0.410 |
 | A-confirm (60) | companion, round 2 | 0.498 | **0.516** |
-| B-dev (30) | companion; us since its release | 0.274 | 0.268 |
-| B-confirm (42) | companion, round 2 | **0.237** | 0.141 |
-| C-dev (36) | companion; us since its release | 0.840 | **0.850** |
-| C-confirm (36), not shown to its solver | neither directly | 0.349 | **0.778** |
+| B-dev (30) | companion; us since its release | **0.274** | 0.268 |
+| B-confirm (42) | companion, round 2 | **0.251** | 0.141 |
+| C-dev (36) | companion; us since its release | **0.909** | 0.850 |
+| C-confirm (36), not shown to its solver | neither directly | 0.468 | **0.778** |
+
+"This system" includes the merged companion handlers. Before the merge (`2500e91`) it scored C-dev 0.840 and
+C-confirm 0.369.
 
 The split between original-corpus and synthetic items:
 
 | bank | this system: original / synthetic | companion: original / synthetic |
 |---|---|---|
-| legacy-dev | 0.779 / 0.760 | 0.771 / **0.234** |
-| legacy-holdout | 0.569 / 0.572 | **0.951** / 0.179 |
+| legacy-dev | 0.812 / 0.760 | 0.771 / **0.234** |
+| legacy-holdout | 0.578 / 0.572 | **0.951** / 0.179 |
 | A-dev | 0.736 / 0.748 | 0.480 / 0.304 |
 | A-confirm | 0.475 / 0.545 | 0.391 / **0.766** |
 
@@ -158,11 +168,13 @@ because the rules are written against generic page shapes.
 
 How to read the comparison:
 
-- **ours-holdout** is the cleanest comparison: neither process tuned on it. We lead by 0.06.
+- **ours-holdout** is the cleanest comparison: neither process tuned on it. We lead by 0.07.
 - **C-confirm** is the most informative gap. Its questions are new neighbours of the C-dev fact families. The
   companion handles them with typed handlers per family, which bind a request to complete multi-part answers: two
   offer clocks, a product's tier plus its top tier, start and resume links, every eligibility route. Our C-dev
-  gains came from general rules that only partly reach those neighbours.
+  gains came from general rules that only partly reach those neighbours. Merging its winning handlers
+  (§6) took our C-confirm from 0.369 to 0.468. The rest of the gap is in handlers whose advantage shows only on
+  its own tuning bank, so they were left out.
 - **The companion's synthetic weakness** is just as informative. Its legacy synthetic accuracy is 0.18–0.23,
   because its handlers assume Dupaco's layouts; ours stays at 0.55–0.76 on the same scenarios.
 - **Errors.** The companion raised 4 exceptions across our dev and km226. We had none: every answer path is
@@ -200,12 +212,35 @@ are the companion repository's measurements.
   - Unannounced cycles are unknown.
   - Each observation of a page is cited separately.
 
+**Merged as code** (the owner allowed it on 2026-10-23; both repositories are the owner's).
+
+`solution/companion/` holds its submission unchanged, and `solution/kb_companion.py` ingests every snapshot into
+it as well. Its answer replaces ours only when both of these hold:
+
+- this system would answer the question from text, not from its rate tables;
+- the answer came from one of the eight handlers that beat this system on the dev banks **outside the companion's
+  own tuning bank**: membership routes and application links, mobile wallets, contact routes, the privacy policy's
+  correction procedure, card offers, the list of credit cards, rates the site doesn't publish, and homebuyer
+  grants.
+
+Its fee, branch, mortgage, installment, deposit and generic-search answers measured worse and are not used.
+Handlers with evidence only on km226 are not used either. Any error inside it disables it, and our answer stands.
+
+Effect, with blind banks run once:
+
+| bank | before → after the merge |
+|---|---|
+| C-confirm | 0.369 → 0.468 |
+| ours-holdout | 0.750 → 0.757 |
+| legacy-holdout | 0.570 → 0.577 |
+| B-confirm | 0.237 → 0.251 |
+| A-confirm | 0.498 (unchanged) |
+
 **Not taken, with the reason:**
 
-- **Its code.** By the owner's instruction, and because its handlers fit Dupaco's layouts closely: its synthetic
-  scores show the cost of that.
-- **Topic-specific handlers** (join routes, wallets, offers, policy corrections). They explain much of its C lead,
-  but each covers one page family. Here the same needs go through the general coverage rule.
+- **Its other handlers.** Measured worse than ours outside its tuning bank, or only measured on it.
+- **Its credit-score guard**, which declines "what score do I need to qualify" questions. It declined an
+  answerable question on our dev bank.
 - **Its strict request-evidence audit as a target.** We fail it on answer form (section-title prefixes, notes),
   not on values. Satisfying it would mean rewriting every answer template without a measured accuracy benefit.
 - **Two policies that the owner decides** (§7).
@@ -215,15 +250,17 @@ are the companion repository's measurements.
 - **Matching is lexical.** A question worded far from the page ("what range follows" for "ongoing rate") can
   miss. A yes/no guard that declined when the answer didn't cover the question cost seven correct dev answers, so
   it was removed. Yes/no questions about a condition the page doesn't state can still get a confident answer.
-- **C-type neighbours.** Complete multi-part answers in page families such as membership routes and wallets are
-  the largest measured gap (C-confirm 0.35 against 0.78).
+- **C-type neighbours.** Complete multi-part answers remain the largest measured gap (C-confirm 0.47 against
+  0.78), now outside the merged handlers' page families.
 - **A-confirm** didn't respond to any change. Its weak spots are unknown, by the blind rule.
 - **Conflicts.** F1 is 0.48 on our dev conflict gold and 0.09 on the holdout's. Kinds such as policy-text
   contradictions aren't detected.
-- **Decisions for the owner**, where the companion's tests expect the other choice:
-  1. A true tie: both values with a note here, declined there.
+- **Decisions for the owner**, where the companion's tests expect the other choice. Both are switches, measured
+  in GENERALIZATION.md §8:
+  1. A true tie: both values with a note here, declined there (`KB_TIE=decline`). No bank changes.
   2. A date before the first download: the earliest copy answers with a note here (owner's decision,
-     2026-10-20), declined there.
+     2026-10-20), declined there (`KB_BEFORE_FIRST=decline`). Declining measured better: blind C-confirm +0.056,
+     km226 +0.020.
   3. Complete-replacement snapshots: a page missing from a download is carried forward here (owner's decision,
      2026-10-20). Some synthetic scenarios treat it as removed.
 - **Data.** The snapshots are for this assessment only. The repository tracks the kit's zips and assignment PDF.

@@ -4,7 +4,8 @@
 
 - Python 3.9+ (tested on 3.11), **standard library only**. No API keys, no network calls, no LLM.
 - `answer()` accepts `as_of` as an ISO date or datetime, "2026-05", "May 2026" or "05/31/2026"; an unreadable date means the latest download. An unexpected error is answered with "I don't know" instead of crashing.
-- Ingesting the 5 snapshots takes about 7 s. Answers take 0.07 s at p95 (0.1 s max) on the public file.
+- Ingesting the 5 snapshots takes about 18 s, including the merged companion runtime. Answers take 0.09 s at p95
+  (0.1 s max) on the public file.
 - An impossible date ("2035-02-31", "February 30, 2035") is declined instead of silently answering from the latest download.
 
 ## Pipeline
@@ -17,6 +18,7 @@
 | 2c | `kb_rate_qa.py` | Answers rate questions from those records, never from raw text. |
 | 3 | `kb_search.py` | Answers everything else by finding the sentence that holds the fact. |
 | 7 | `kb_conflicts.py` | Lists the places where the site contradicts itself. |
+| 8 | `kb_companion.py` + `companion/` | The owner's second build of this assessment, merged unchanged. It answers only text questions that one of its eight specialist handlers takes: membership routes and links, mobile wallets, contact routes, the privacy policy's correction procedure, card offers, the card list, rates the site doesn't publish, homebuyer grants. Each was measured better than this system on dev banks outside the companion's own tuning bank. Any error in it disables it. |
 
 ## What counts as "current", in priority order
 
@@ -111,8 +113,8 @@ Otherwise the system answers with what the site says. Refusals contain no number
 |---|---|
 | `eval/public_eval.jsonl` | **0.969** total, 0 stale-trap hits, consistency 1.0, speed 1.0. The only miss, `dup-005`, has no `must_include` and can't be scored without the LLM judge, so 0.969 is the most this file allows. |
 | harness self-test (5 questions + 1 conflict) | 1.0 |
-| `tests/sim_eval.jsonl`, our 330-question stand-in for the hidden set | 0.9592 total (accuracy 0.966, consistency 0.963) |
-| `tests/run_checks.py` | 190/190 |
+| `tests/sim_eval.jsonl`, our 330-question stand-in for the hidden set | 0.9628 total (accuracy 0.969, consistency 0.963) |
+| `tests/run_checks.py` | 209/209 |
 
 The stand-in set holds every public question with six rewordings, "as of" questions on rate rows that changed, current values of changed facts, change questions and refusals.
 
@@ -121,7 +123,7 @@ The stand-in set holds every public question with six rewordings, "as of" questi
 | suite | count |
 |---|---|
 | paraphrases (set A tuned on; set B written fresh) | 59 |
-| paired controls: each rule learned from a bank, in words no bank uses, in an equivalent and a minimally changed form | 24 |
+| paired controls: each rule learned from a bank, in words no bank uses, in an equivalent and a minimally changed form | 43 |
 | review cases | 33 |
 | synthetic snapshots | 4 |
 | mutations (one rule, one changed input) | 11 |
@@ -131,21 +133,21 @@ On **eleven agent-written banks** from four authors (about 1,400 items; organize
 
 | bank | dev | blind |
 |---|---:|---:|
-| our independent author (226 / 176) | 0.827 | 0.750 |
-| companion repository, km226 | 0.595 | - |
-| legacy509 (333 / 176) | 0.775 | 0.570 |
+| our independent author (226 / 176) | 0.856 | 0.757 |
+| companion repository, km226 | 0.673 | - |
+| legacy509 (333 / 176) | 0.800 | 0.577 |
 | author A (100 / 60) | 0.741 | 0.498 |
-| author B (30 / 42) | 0.274 | 0.237 |
-| author C (36 / 36) | 0.840 | 0.349 |
+| author B (30 / 42) | 0.274 | 0.251 |
+| author C (36 / 36) | 0.909 | 0.468 |
 
-The companion repository's Parent45e1 mechanism suites (35 tests on made-up banks) pass 30. The five misses:
+The companion repository's Parent45e1 mechanism suites (35 tests on made-up banks) pass 31. The four misses:
 
-- two policy differences, both kept here by the owner's decision: a true tie, and a date before the first download;
+- two policy differences, both kept here by the owner's decision: a true tie, and a date before the first
+  download. Both are switches, `KB_TIE=decline` and `KB_BEFORE_FIRST=decline`; with both on, 33 pass;
 - one wording requirement;
-- one semantic gap;
-- one yes/no question about a condition the page doesn't state.
+- one semantic gap.
 
-How these numbers moved commit by commit, what was tried and rejected, a same-bank comparison with the companion system, and the method are in `docs/ITERATIONS.md`, `docs/REPORT.md` and `docs/METHODOLOGY.md`.
+How these numbers moved commit by commit, what was tried and rejected, a same-bank comparison with the companion system, the method, and what transfers to unseen questions are in `docs/ITERATIONS.md`, `docs/REPORT.md`, `docs/METHODOLOGY.md` and `docs/GENERALIZATION.md`.
 
 ## Developer tool
 

@@ -40,7 +40,10 @@ The columns show accuracy (the harness `qa_score`). The banks are described in �
 | `00f6859` each named day | 0.969 | 0.816 | 0.573 | 0.771 | 0.724 | 0.241 | 0.738 | 0.754 | 0.557 | 0.494 | 0.198 | 0.284 |
 | `2effed2` **cover every asked part** | 0.969 | 0.827 | 0.594 | 0.775 | 0.741 | 0.274 | 0.824 | 0.754 | 0.566 | 0.498 | 0.244 | **0.349** |
 | `7753542` paired controls | 0.969 | 0.827 | 0.594 | 0.775 | 0.741 | 0.274 | 0.824 | 0.754 | 0.566 | 0.498 | 0.244 | 0.349 |
-| `d3b3c6f` custody-suite fixes (current) | 0.969 | 0.827 | 0.595 | 0.775 | 0.741 | 0.274 | 0.840 | 0.750 | 0.570 | 0.498 | 0.237 | 0.349 |
+| `d3b3c6f` custody-suite fixes | 0.969 | 0.827 | 0.595 | 0.775 | 0.741 | 0.274 | 0.840 | 0.750 | 0.570 | 0.498 | 0.237 | 0.349 |
+| `2500e91` its winning mechanisms, reimplemented | 0.969 | 0.828 | 0.619 | 0.792 | 0.741 | 0.274 | 0.840 | 0.750 | 0.570 | 0.498 | 0.237 | 0.369 |
+| `f43a470` **companion merged as a specialist** | 0.969 | 0.838 | 0.668 | 0.795 | 0.741 | 0.274 | 0.901 | 0.757 | 0.577 | 0.498 | 0.237 | 0.436 |
+| `ce21637` three more specialist handlers (current) | 0.969 | 0.856 | 0.673 | 0.800 | 0.741 | 0.274 | 0.909 | 0.757 | 0.577 | 0.498 | 0.251 | 0.468 |
 
 Commits that only touched tests or docs are left out, as are runs with identical scores (`b17b9fe`, `bdd8e5b`,
 `51ddee3`, `51bbd72`, `f576948`). Raw outputs are kept outside the repository: they contain snapshot text.
@@ -55,7 +58,11 @@ What the table shows:
   `27b435a` lowered A-dev too. Neither bank existed yet. This is why every change is now measured on every bank.
 - **A-confirm barely moved** (0.502 → 0.498). It is the one blind bank our changes didn't lift. Its synthetic part
   improved (0.545) while its original-corpus part didn't.
-- **C transfers poorly.** C-dev rose from 0.407 to 0.840, but C-confirm only from 0.266 to 0.349. See REPORT §5.
+- **C transferred poorly, until the merge.** By `d3b3c6f`, C-dev had risen from 0.407 to 0.840 but C-confirm only
+  from 0.266 to 0.349. Merging the companion's handlers for C's page families took C-confirm to 0.468.
+- **Across all commits** the dev and blind changes correlate at r = 0.88, and 63% of the summed dev gain reached
+  the blind banks. Scorer-derived rules and evidence-chosen merges transferred almost fully; fixes driven by
+  single items transferred little. See [GENERALIZATION.md](GENERALIZATION.md).
 
 ### The iterations
 
@@ -151,6 +158,39 @@ general rules: there is no code keyed to a question id, URL or expected value.
 - `5cf624a` kept the companion repository's request-evidence developer controls as a diagnostic (0/90 here,
   22/90 for its own runtime).
 
+**Day 3 (2026-10-23). Absorbing what the companion does better, then merging it.**
+
+The owner asked to absorb what the companion does well, then allowed merging its code (both repositories are
+the owner's). Analysis first, on the dev banks only:
+
+- Per question, a "best of both" answer would add 0.06 to 0.15 per bank. That is the room there is.
+- A naive merge (use its answer whenever ours declines) went up on some banks and down on others: it answers
+  confidently where our refusal is right.
+- Per route, the companion wins every kind of question on km226, its own tuning bank, and loses most kinds
+  elsewhere. So the merge had to be chosen per handler, by evidence outside km226.
+
+The commits:
+
+- `2500e91` reimplemented its winning mechanisms as general rules:
+  - comparisons answer both sides (several model years, purchase and refinance, the shortest and longest terms,
+    two terms compared);
+  - "which tier ..., and what is its APY" is one rate question;
+  - a named product kind ("student loan") restricts text answers, when the site titles a product that way;
+  - "paying it off early" also means prepayment;
+  - private account state in more wordings.
+
+  Not taken: its credit-score guard, which declined an answerable question. Answer formats tuned to the bank
+  authors were not taken either, because the organizer's tokens are plain numbers. Fourteen paired controls; the
+  first run caught two more wording-bound rules.
+- `f43a470` **merged it.** `solution/companion/` holds its submission unchanged, and `kb_companion.py` uses its
+  answer only for text questions, and only when one of five services handlers answered: join routes, wallets,
+  contact routes, policy corrections, offers. A guard keeps "museum-membership benefit" out of the join handler.
+- `ce21637` added three loans handlers on the same evidence: the card list, unpublished rates, homebuyer grants.
+  Its mortgage, installment, card-fee and student handlers were mixed or worse, and stay out.
+- `eb0a5ca` made the two owner policies switchable and measured them. Declining a date before the first download:
+  C-confirm +0.056, km226 +0.020. Declining a true tie: no change. Defaults kept until the owner decides.
+  Also added `docs/GENERALIZATION.md`.
+
 ### Decisions left to the owner
 
 Two policies differ from the companion repository's tests, and the owner decides them:
@@ -230,20 +270,20 @@ previous runtime it was a net complete-correct change of zero.
 |---|---|---|---|
 | organizer public 40 | kit | `harness/run_eval.py`, `tests/scoreboard.py` | 0.969 (the most the file allows without its LLM judge) |
 | organizer selftest 5 + 1 conflict | kit | scoreboard | 1.0 |
-| stand-in hidden set, 330 questions | this repo (`tests/build_sim_eval.py`) | scoreboard | 0.9592 total |
+| stand-in hidden set, 330 questions | this repo (`tests/build_sim_eval.py`) | scoreboard | 0.9628 total |
 | paraphrases A 29 / B 30 | this repo | `tests/run_checks.py` | 59/59 |
 | review cases 33 | external code review | run_checks | 33/33 |
 | synthetic snapshots 4, mutations 11 | this repo | run_checks | 15/15 |
-| paired controls 24 | this repo, after the companion's gate | run_checks | 24/24 |
+| paired controls 43 | this repo, after the companion's gate | run_checks | 43/43 |
 | determinism across two hash seeds | this repo | run_checks | 59/59 |
-| ours-dev 226 / ours-holdout 176 | our independent test author | `tests/banks.py` | 0.827 / 0.750 (holdout blind) |
-| km226 + 16-topic conflict proxy | companion | banks | 0.595 |
-| legacy509 dev 333 / holdout 176 | companion, round 1 | banks | 0.775 / 0.570 (blind) |
+| ours-dev 226 / ours-holdout 176 | our independent test author | `tests/banks.py` | 0.856 / 0.757 (holdout blind) |
+| km226 + 16-topic conflict proxy | companion | banks | 0.673 |
+| legacy509 dev 333 / holdout 176 | companion, round 1 | banks | 0.800 / 0.577 (blind) |
 | A dev 100 / confirm 60 | companion, round 2 | banks | 0.741 / 0.498 (blind) |
-| B dev 30 / confirm 42 | companion, round 2 | banks | 0.274 / 0.237 (blind) |
-| C dev 36 / confirm 36 | companion, round 3 | banks | 0.840 / 0.349 (blind) |
+| B dev 30 / confirm 42 | companion, round 2 | banks | 0.274 / 0.251 (blind) |
+| C dev 36 / confirm 36 | companion, round 3 | banks | 0.909 / 0.468 (blind) |
 | program status 48, source planner 25 | companion, round 3 | `tests/knowledge_main/run.py` | 8/48, 11/14 applicable (diagnostic) |
-| Parent45e1 custody 35 | companion, round 3 | knowledge_main/run.py | 30/35 |
+| Parent45e1 custody 35 | companion, round 3 | knowledge_main/run.py | 31/35 (33/35 with both policy switches) |
 | request-evidence developer controls 90 | companion, follow-up | by hand (see MANIFEST) | 0/90 (diagnostic of answer form) |
 | fee 19, percent display 7, narrative 16 | companion | not applicable | they unit-test that runtime's own modules |
 | provenance 14, typed fields 38 | companion | not copied | they read that runtime's internals |
