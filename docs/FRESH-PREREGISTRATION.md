@@ -13,3 +13,9 @@ Questions answered: did the session's work generalise to unseen questions (B vs 
 compare on a set neither was tuned on (B vs C); does absorbing more of the companion help (D vs B).
 Decision rule fixed in advance: D replaces B only if it is better on total AND not worse on accuracy by more
 than one question's weight; otherwise B stays. No further variant is run on this set.
+
+Enforced by `tests/fresh_once.py`: each variant's source hash may run on this set once; a START line goes to
+`hackathon-fresh-eval/LEDGER.jsonl` before the solution is imported, a repeat is refused, and only aggregates
+are kept (per-question output is written to a temporary folder and deleted). This follows the companion
+repository's one-shot heldback rule (its harness v2a, itself rejected on 2026-10-23 for path-safety defects
+that matter only against an untrusted process on the same machine).
