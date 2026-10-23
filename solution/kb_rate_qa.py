@@ -42,7 +42,7 @@ NEGATED = re.compile(r"\b(?:not|excluding|other than|besides|rather than|instead
 # what the question asks about the product is not its rate: a requirement, a limit, a term, a cost, a how-to.
 # Those answers are in the text around the tables ("Rates based on a minimum 760 credit score and 75% LTV").
 CONDITION = re.compile(r"\b(credit score|ltv|loan.to.value|qualif\w*|requirement\w*|eligib\w*|closing costs?|"
-                       r"how long|terms? (are )?(available|offered)|repayment|floor|cap(ped)?|maximum apr|highest apr|"
+                       r"terms? (are )?(available|offered)|repayment|floor|cap(ped)?|maximum apr|highest apr|"
                        r"lowest (it|the rate) can|never (be )?(less|lower|more|higher)|expire\w*|how do i|what do i (have|need)|"
                        r"have to do|need to do|minimum credit limit|credit limit|payment on|monthly payment|paid out|"
                        r"how much (of|can i borrow)|borrow up to|down payment|convert\w*|catch|recoup|"
@@ -99,10 +99,13 @@ METRIC_KEYS = {"apy": ("apy", "promo_apy"), "apr": ("apr",), "dividend": ("divid
 
 # The kind of loan a question names: "construction loan", "VA mortgage", "land mortgage". A kind that no
 # vocabulary word above explains must be printed in the family's rate rows, or the rows don't answer it.
-LOAN_KIND = re.compile(r"\b([a-z][a-z/'-]*)\s+(?:home\s+)?(loans?|mortgages?)\b")
+LOAN_KIND = re.compile(r"\b([a-z][a-z/'-]*)\s+(?:home\s+|credit\s+|savings\s+|checking\s+|money market\s+)?"
+                       r"(loans?|mortgages?|propert(?:y|ies)|cards?|accounts?)\b")
 PLAIN_WORDS = frozenset("""a an the my your our any this that which what current new used today's best lowest
     highest top cheapest good standard regular fixed fixed-rate rate interest year yr month term conventional
-    purchase home house mortgage loan first primary dupaco dupaco's""".split())
+    purchase home house mortgage loan first primary dupaco dupaco's credit debit savings checking money market
+    cash back personal individual normal basic online joint plain have has had offer offers get got all other
+    some both these those more any do does you i we""".split())
 
 WORDNUM = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8,
            "nine": 9, "ten": 10, "twelve": 12, "fifteen": 15, "twenty": 20, "thirty": 30}

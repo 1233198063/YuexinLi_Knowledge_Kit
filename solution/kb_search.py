@@ -109,6 +109,8 @@ def answer_kind(question: str) -> tuple[str, Optional[re.Pattern]]:
         return "a phone number", PHONE
     if is_status(ql):
         return "a date", DATE  # "is the Hy-Vee branch still open today?" -> its closing date
+    if re.search(r"\b(cut-?off|deadline)\b", ql):
+        return "a cutoff time", TIME     # "daily cutoff time for a same-day wire?"
     if re.search(r"\b(hours?|what time|open until|close at|closing time|opening time)\b", ql) or \
             (re.search(r"\b(when|open|close)\b", ql) and SCHEDULE_WORDS.search(ql)) or \
             (re.search(r"\b(when|open|close)\b", ql) and re.search(r"\b(lobby|lobbies|drive[- ]?(up|thru|through))\b", ql)):
@@ -124,9 +126,11 @@ def answer_kind(question: str) -> tuple[str, Optional[re.Pattern]]:
         return "a link", URL
     if re.search(r"\b(address|located|location of|where is|where's)\b", ql):
         return "an address", ADDRESS
-    if RATE_WORDS.search(ql):
+    # "1st Rate Checking" is a name, and "what credit score do I need for the 6.25% rate?" asks for a requirement
+    if RATE_WORDS.search(re.sub(r"\b(1st|first) rate\b", " ", ql)) and \
+            not re.search(r"\b(credit score|qualif\w*|requirement\w*|eligib\w*|ltv|loan.to.value)\b", ql):
         return "a rate", RATE_VALUE
-    if re.search(r"\b(how much|fee|cost|charge|price)\b", ql):
+    if re.search(r"\b(how much|fee|cost|charge|price|limits?)\b", ql):
         return "an amount", MONEY
     return "", None
 
@@ -140,7 +144,8 @@ STARTERS = frozenset("""what how is are can could do does did when where who who
 tell give please i my the a an any list show get find has have was were may after before if in on for at as
 there this that hi hello hey so and but okay ok last next since provide describe explain help need want
 looking also thanks thank""".split())
-PRODUCT_NOUN = re.compile(r"\b([a-z][a-z-]+)\s+(?:loans?|accounts?|cards?|mortgages?|certificates?|lines? of credit)\b")
+PRODUCT_NOUN = re.compile(r"\b([a-z][a-z-]+)\s+(?:(?:credit|debit|savings|checking)\s+)?"
+                          r"(?:loans?|accounts?|cards?|mortgages?|certificates?|lines? of credit|propert(?:y|ies))\b")
 
 
 GENERIC_ACRONYMS = frozenset("url apr apy aba faq pdf usa us".split())
@@ -165,6 +170,33 @@ def subject(question: str, idf: dict) -> tuple[str, set, set]:
     phrase = " ".join(names + acronyms) or (kinds[0].group(0) if kinds else "")
     return (phrase, set(tokens(" ".join(names + acronyms + [m.group(1) for m in kinds]))),
             set(tokens(" ".join(names))), {a.lower() for a in acronyms})
+
+
+RUN = re.compile(r"[A-Z][\w'’-]*(?:\s+[A-Z][\w'’-]*)+")
+RUN_GENERIC = frozenset(tokens("program programs account accounts loan loans card cards rate rates branch branches "
+                               "office plan the of and dupaco"))
+
+
+def name_runs(question: str) -> list:
+    """Multi-word capitalised names as token lists: 'Visa Signature' -> ['visa', 'signatur'];
+    'Mineral Point Road' -> [...]. A sentence's first word is capitalised anyway and is dropped if it starts a
+    question; months, Dupaco and generic product words don't count."""
+    out = []
+    for m in RUN.finditer(question):
+        words = m.group(0).split()
+        if (not question[:m.start()].strip() or re.search(r"[.?!:]\s*$", question[:m.start()])) and \
+                re.split(r"['’]", words[0].lower())[0] in STARTERS:
+            words = words[1:]
+        toks = [t for w in words if re.split(r"['’]", w.lower())[0] not in NOT_NAMES - {"visa"}
+                for t in tokens(w) if t not in RUN_GENERIC and not t.isdigit()]
+        if len(toks) >= 2:
+            out.append(toks)
+    return out
+
+
+def abbrev_in(token: str, terms) -> bool:
+    """'avenu' is in the context, or an abbreviation of it is ('ave')."""
+    return token in terms or any(len(x) >= 3 and token.startswith(x) for x in terms)
 
 
 def dont_know(text: str) -> "Hit":
@@ -502,14 +534,16 @@ SYNONYMS = [(re.compile(r"\bbecome (?:a |an )?(?:dupaco )?member\b", re.I), "joi
             (re.compile(r"\blobbies\b", re.I), "lobby")]
 # Question words that carry no topic ("how many branches does Dupaco operate NOW?", "what has Forbes SAID?")
 FILLER = frozenset(tokens("now currently current today presently right said say says nowadays these days "
-                          "operate operates run runs own owns about"))
+                          "operate operates run runs own owns about carry carries offer offers provide provides"))
 # words that only say WHICH kind of answer is wanted: "what's the LINK to the branch locator?" is about the locator
 KIND_WORDS = {"a link": frozenset(tokens("link links url urls website web page site online address")),
               "that number": frozenset(tokens("number count total"))}
 # words that only name the answer shape, never what it is about: "what NUMBER do I CALL if my card is stolen?"
 SHAPE_WORDS = frozenset(tokens("number numbers call phone telephone extension ext contact address located location "
                                "hours open time link url website page date day when"))
-AMOUNT_WORDS = frozenset(tokens("fee fees cost costs charge charges price prices much pay amount"))
+AMOUNT_WORDS = frozenset(tokens("fee fees cost costs charge charges price prices much pay amount limit limits "
+                                "per month monthly daily"))
+RATE_SHAPE_WORDS = frozenset(tokens("rate rates interest apr aprs apy apys yield dividend percentage"))
 # "has the number of branches CHANGED?" asks about time, not about sentences that contain "changed"
 CHANGE_ASKED = re.compile(r"\b(changed|previous(ly)?|used to|increased|decreased|raised|lowered|dropped)\b", re.I)
 CHANGE_WORDS = frozenset(tokens("changed change previous previously used increased decreased raised lowered dropped"))
@@ -567,6 +601,10 @@ def search(view, question: str, idf: dict, today: date, defs: Optional[dict] = N
             if cta:
                 score *= 0.5          # "For more information about Home$tart, visit ..." doesn't say what it is
             cands.append((score, doc, ch, i, (not cta, len(own), own_w)))
+    # (a) also for an acronym: one the site never prints, not even spelled out ("SWIFT code"), is unknown
+    unknown_acr = [a for a in acronyms if len(a) > 2 and a not in idf]
+    if unknown_acr and not any(mentions(c, a, acronyms) for a in unknown_acr for c in cands):
+        return dont_know(f"the website doesn't mention {' '.join(a.upper() for a in unknown_acr)}.")
     if pattern:
         # the needed shape must appear in what we would answer (the sentence and the one or two after it),
         # in text about the thing asked ("Mullan Avenue" hours, not some other branch's hours)
@@ -580,11 +618,19 @@ def search(view, question: str, idf: dict, today: date, defs: Optional[dict] = N
             top = max(count.values(), default=0)
             cands = [c for c in cands if count[id(c)] == top]
             if products:
-                cands = [c for c in cands if products & context(c)]
-        if pattern is MONEY and q - AMOUNT_WORDS:
-            # a fee must be the fee asked about: "lost debit card REPLACEMENT", not another debit-card fee
-            key = max(q - AMOUNT_WORDS, key=lambda t: idf.get(t, 0.0))
-            cands = [c for c in cands if key in context(c)]
+                cands = [c for c in cands if products & context(c)] or cands
+        for run in name_runs(question):
+            # a multi-word name must be there whole ("Visa Signature" is not a story about Signature Bank;
+            # "Mineral Point Road"), allowing abbreviations ("Pennsylvania Ave.")
+            cands = [c for c in cands if all(abbrev_in(t, context(c)) for t in run)]
+        shape = AMOUNT_WORDS if pattern is MONEY else RATE_SHAPE_WORDS if pattern is RATE_VALUE else \
+            frozenset() if kind == "a cutoff time" else None
+        if shape is not None and q - shape - SHAPE_WORDS:
+            # an amount, rate or cutoff must be the one asked about: the "lost debit card REPLACEMENT" fee, the
+            # "AUTO INSURANCE" premium (two words for an amount), the "EUROS" exchange rate, the WIRE cutoff - not
+            # some other fee, rate or deadline. If no text has them, the site doesn't say
+            keys = sorted(q - shape - SHAPE_WORDS, key=lambda t: -idf.get(t, 0.0))[:2 if pattern is MONEY else 1]
+            cands = [c for c in cands if all(mentions(c, k, acronyms | {k}) for k in keys)]
         typed = [c for c in cands if pattern.search(compose(c[2], c[3]))]
         if not typed and pattern is DATE:   # a news release about the event is dated even if its text isn't
             typed = [c for c in cands if c[1].published]
