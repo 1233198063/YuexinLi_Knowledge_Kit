@@ -25,7 +25,7 @@ undated page, its version in the newest download.
 from __future__ import annotations
 
 import re
-from collections import defaultdict
+from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Optional
@@ -37,9 +37,12 @@ from kb_search import same_statement, signature
 
 ORDINALS = {"first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5, "sixth": 6, "seventh": 7,
             "eighth": 8, "ninth": 9, "tenth": 10}
-NUMBER = re.compile(r"(?<![\w$.,])(\d[\d,]*(?:\.\d+)?)(\+?)\s+((?:[A-Za-z’'-]+\s+){0,2}[A-Za-z’'-]+)|"
+NUMBER = re.compile(r"(?<![\w.,])\$?(\d[\d,]*(?:\.\d+)?)(\+?)\s+((?:[A-Za-z’'-]+\s+){0,2}[A-Za-z’'-]+)|"
                     r"\b(" + "|".join(ORDINALS) + r")\s+(time)\b", re.I)
 YEAR = re.compile(r"\b(?:19|20)\d\d\b")
+# "Founded in 1948 ..." dates the credit union, not the statistic: the sentence is still boilerplate whose member
+# count and assets change ("more than 141,000 ... $2.6 billion" -> "more than 179,000 ... $3.6 billion")
+FOUNDED = re.compile(r"\b(?:founded|chartered|established|organized|since)\b[^,.;]*?\b(?:19|20)\d\d\b", re.I)
 
 
 @dataclass
@@ -213,7 +216,8 @@ def _numbers(sentence: str):
         else:
             word = tokens(m.group(3))
             if word:
-                what = re.split(r"\s+(?:and|with|in|to|of|throughout|who|that|across)\b", m.group(3).strip())[0]
+                what = re.sub(r"^(?:with|and|in|to|of|for)\s+", "", m.group(3).strip())      # "with assets ..."
+                what = re.split(r"\s+(?:and|with|in|to|of|throughout|who|that|across)\b", what)[0]
                 out.setdefault(word[0], (m.group(1).replace(",", ""), what))
     return out
 
@@ -228,7 +232,7 @@ def text_conflicts(view, min_pages: int = 3) -> list[Found]:
             continue
         for ch in doc.chunks:
             for s, terms in ch.sents:
-                if YEAR.search(s) or not NUMBER.search(s):
+                if YEAR.search(FOUNDED.sub(" ", s)) or not NUMBER.search(s):
                     continue                          # year-labelled statistics are history (user decision)
                 sig = signature(frozenset(t for t in terms if not t[0].isdigit()))
                 if len(sig) >= 4:
@@ -251,8 +255,7 @@ def text_conflicts(view, min_pages: int = 3) -> list[Found]:
     for i, x in enumerate(sents):
         groups[root(i)].append(x)
 
-    found = []
-    for g in groups.values():
+    def changing_words(g):
         by_word = defaultdict(lambda: defaultdict(list))         # counted word -> value -> [(doc, sentence)]
         label = {}
         for d, s, _ in g:
@@ -267,9 +270,33 @@ def text_conflicts(view, min_pages: int = 3) -> list[Found]:
                 continue
             if word != "time" and widest < min_pages:
                 continue      # one page per value = a yearly article about that year, not a repeated claim
+            on_page = defaultdict(set)
+            for val, where in vals.items():
+                for d, _ in where:
+                    on_page[d.key].add(val)
+            if any(len(v) > 1 for v in on_page.values()):
+                continue      # both values on one page: two facts side by side ($4,000 and $2,000 scholarships)
             changing.append(word)
-        if not changing:
-            continue
+        return changing, label
+
+    # reworded boilerplate is the same statement: "membership totals more than 141,000 with assets exceeding $2.6
+    # billion" (2020-23) and "membership has grown to more than 179,000 ... $3.6 billion" change the same quantities
+    info = [(g, *changing_words(g)) for g in groups.values()]
+    info = [x for x in info if x[1]]
+    merged = []
+    for g, changing, label in info:
+        sig = Counter(x[2] for x in g).most_common(1)[0][0]       # the group's most repeated wording
+        for m in merged:
+            if set(m[1]) & set(changing) and len(sig & m[3]) / len(sig | m[3]) >= 0.25:
+                m[0].extend(g)
+                m[1] = m[1] + [w for w in changing if w not in m[1]]
+                m[2] = {**label, **m[2]}
+                break
+        else:
+            merged.append([list(g), changing, label, sig])
+
+    found = []
+    for g, changing, label, _ in merged:
         # one conflict per repeated statement: its versions, newest first
         versions = defaultdict(list)
         for d, s, _ in g:
