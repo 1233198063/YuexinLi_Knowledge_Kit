@@ -9,6 +9,7 @@ Everything downstream asks three questions about a piece of text:
 from __future__ import annotations
 
 import hashlib
+import html
 import re
 from dataclasses import dataclass, field
 from datetime import date, datetime
@@ -34,10 +35,17 @@ BLANKS = re.compile(r"\n{3,}")
 
 
 def clean(markdown: str) -> str:
-    t = markdown
-    m = SIDEBAR.search(t)
-    if m:
-        t = t[: m.start()]
+    # HTML entities, sometimes escaped twice ("non&amp;#45;members" is "non-members"); "&" alone is left alone
+    t = html.unescape(html.unescape(markdown)) if "&" in markdown else markdown
+    # a "Handpicked for You" / "Related Articles" block lists other pages: drop it up to the next heading of its
+    # level or higher - not the rest of the page, where the product's FAQ often follows
+    for _ in range(5):
+        m = SIDEBAR.search(t)
+        if not m:
+            break
+        level = len(m.group(0)) - len(m.group(0).lstrip("#"))
+        nxt = re.compile(rf"^#{{1,{level}}}\s", re.M).search(t, m.end())
+        t = t[: m.start()] + (t[nxt.start():] if nxt else "")
     t = DATA_URI.sub("", t)
     t = IMAGE.sub("", t)
     t = FLAG_LINE.sub("", t)

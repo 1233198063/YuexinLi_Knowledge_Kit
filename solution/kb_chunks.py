@@ -64,12 +64,16 @@ def stem(w: str) -> str:
             break
     if len(w) > 4 and w.endswith("e"):
         w = w[:-1]
+    if w.endswith(("ariz", "oriz")):
+        w = w[:-2] + "y"            # notarize~notary, summarize~summary, categorize~category
     return w[:6]
 
 
 def tokens(text: str) -> list[str]:
     """Lower-case, lightly stemmed words and numbers, minus stop words: the vocabulary search works with."""
     text = re.sub(r"https?://\S+", " ", re.sub(r"\]\([^)]*\)", "] ", text))   # link text counts, its URL doesn't
+    # "non-members" is both "nonmembers" (asked that way) and about "members" ("I'm not a member")
+    text = re.sub(r"\b([Nn]on)[-\s]([a-z]\w*)", r"\1 \2 \1\2", text)
     words = WORD.findall(text.lower().replace("$", " ").replace("’", "").replace("'", ""))
     out = [stem(w) for w in words if w not in STOP and (len(w) > 1 or w.isdigit())]
     return [s for s in out if s not in STOP]     # "Dupaco's" -> "dupacos" -> "dupaco": still a stop word

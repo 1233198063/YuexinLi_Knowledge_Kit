@@ -46,7 +46,9 @@ URL = re.compile(r"https?://|www\.|\b[a-z0-9-]+\.(com|org|net)\b", re.I)
 ADDRESS = re.compile(r"\b\d{2,6}\s+(?:[A-Z0-9][\w.'-]*\s+){1,4}(?:St|Street|Ave|Avenue|Rd|Road|Dr|Drive|Lane|Ln|"
                      r"Blvd|Boulevard|Way|Court|Ct|Highway|Hwy|Parkway|Pkwy|Place|Pl|Circle|Cir)\b"
                      r"|\bP\.?\s?O\.?\s+Box\s+\d+")
-MONEY = re.compile(r"\$\s?\d")
+# an amount, or a price of nothing ("free", "at no cost") - not the product name "Free Checking"
+MONEY = re.compile(r"\$\s?\d|\b(?:free|no cost|no charge|no fee|free of charge|complimentary)\b"
+                   r"(?!\s+(?:business\s+)?(?:checking|savings|accounts?)\b)", re.I)
 ROUTING = re.compile(r"\b\d{9}\b")
 # a rate value is printed like a rate ("6.25%", "5% APR"); "adjust up to 2%" or "80% of costs" is not one
 RATE_VALUE = re.compile(r"\b\d{1,2}\.\d{1,3}\s*%|\b\d{1,2}(?:\.\d+)?\s*%\s*(?:APR|APY|annual percentage)", re.I)
@@ -95,7 +97,8 @@ def answer_kind(question: str) -> tuple[str, Optional[re.Pattern]]:
     if m:
         words = [w for w in WORD.findall(m.group(1) or m.group(2)) if w not in STOP]
         # a count is not a $ amount, a year or a duration ("over 18 years of age")
-        count = r"(?<![$\d.,])(?!(?:19|20)\d\d\b)\d[\d,]*\+?(?!\s*(?:years?|months?|days?|hours?|%|percent)\b)"
+        count = r"(?:(?<![$\d.,])(?!(?:19|20)\d\d\b)\d[\d,]*\+?(?!\s*(?:years?|months?|days?|hours?|%|percent)\b)" \
+                r"|\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b)"   # "one additional user"
         if words and words[0] in ("people", "persons", "individuals", "folks"):
             return "that number", re.compile(rf"{count}\s+[A-Za-z]")    # "how many people used VTO?" -> "294 employees"
         if words:   # "how many branches": "22 branch office locations" or "membership has grown to more than 179,000"
@@ -135,7 +138,7 @@ def answer_kind(question: str) -> tuple[str, Optional[re.Pattern]]:
     if re.search(r"\b(address|located|location of|where is|where's)\b", ql):
         return "an address", ADDRESS
     # "1st Rate Checking" is a name, and "what credit score do I need for the 6.25% rate?" asks for a requirement
-    if RATE_WORDS.search(re.sub(r"\b(1st|first) rate\b", " ", ql)) and \
+    if RATE_WORDS.search(re.sub(r"\b(1st|first) rate\b|\bconflicts? of interest\b", " ", ql)) and \
             not re.search(r"\b(credit score|qualif\w*|requirement\w*|eligib\w*|ltv|loan.to.value)\b", ql):
         return "a rate", RATE_VALUE
     if re.search(r"\b(how much|fee|cost|charge|price|limits?)\b", ql):
@@ -363,6 +366,22 @@ CLOSING = re.compile(rf"\b(clos\w*|discontinu\w*|end\w*|expir\w*)\b[^.]{{0,60}}?
 
 UNANNOUNCED = re.compile(r"\b(?:will be announced|to be announced|not (?:yet )?(?:been )?announced|have not announced|"
                          r"has not announced|haven't announced|hasn't announced|dates? (?:are |is )?(?:tbd|tba))\b", re.I)
+
+
+NO_COST = re.compile(r"\b(?:no cost|no charge|no fee|free of charge|complimentary)\b|\b(?:is|are|be|it's|always|completely|"
+                     r"totally)\s+free\b", re.I)
+
+
+def states_price(text: str, q: set) -> bool:
+    """A dollar amount, or a price of nothing for the thing asked: "at no cost", "the program is free", "a free
+    Dupaco Money Makeover" for the Money Makeover - not "a free insurance quote" for the price of insurance."""
+    if re.search(r"\$\s?\d", text) or NO_COST.search(text):
+        return True
+    for m in re.finditer(r"\bfree\s+((?:[\w'’-]+\s+){0,2}[\w'’-]+)", text, re.I):
+        following = set(tokens(m.group(1)))
+        if following & q and not following & AMOUNT_WORDS and not re.match(r"(?i)(?:\w+\s+){0,2}quotes?\b", m.group(1)):
+            return True
+    return False
 
 
 def status_prefix(question: str, text: str, today: date) -> str:
@@ -611,7 +630,8 @@ KEY_IGNORE = frozenset(tokens("shown show shows showed displayed listed list lis
                               "lowest maximum max least top bottom floor ceiling cap capped band bands range ranges "
                               "reach go run compare compared comparison versus vs difference january february march "
                               "april may june july august september october november december explain describe "
-                              "clock clocks timing rule rules detail details summarize tell"))
+                              "clock clocks timing rule rules detail details summarize tell something anything "
+                              "everything thing things stuff"))
 # words that only say WHICH kind of answer is wanted: "what's the LINK to the branch locator?" is about the locator
 KIND_WORDS = {"a link": frozenset(tokens("link links url urls website web page site online address")),
               "that number": frozenset(tokens("number count total"))}
@@ -699,6 +719,12 @@ def search(view, question: str, idf: dict, today: date, defs: Optional[dict] = N
             phrase = re.compile(r"\b" + r"[\s*_\-]+".join(re.escape(w) for w in words) + r"\b", re.I)
             section = lambda c: c[2].heading + " " + c[2].text     # its section names it, if not the sentence itself
             cands = [c for c in cands if phrase.search(section(c))] or cands
+        # "the cash-management WIRE section": the section titled that way, not an FAQ summary that mentions wires
+        for m in re.finditer(r"\b([a-z][\w-]+(?:\s+[a-z][\w-]+)?)\s+section\b", question, re.I):
+            named = [w for w in m.group(1).split() if w.lower() not in STOP]
+            if named:
+                head = re.compile(r"\b" + re.escape(named[-1]) + r"\w*", re.I)
+                cands = [c for c in cands if head.search(c[2].heading.split(" > ")[-1])] or cands
     if titled:
         # text about the named kind (in its heading or around it - not the URL: every consumer page's URL says
         # "personal"), when there is any; otherwise every candidate stays
@@ -762,7 +788,8 @@ def search(view, question: str, idf: dict, today: date, defs: Optional[dict] = N
             else:
                 keys = sorted(words, key=lambda t: (-idf.get(t, 0.0), t))[:1]
                 cands = [c for c in cands if all(mentions(c, k, acronyms | {k}) for k in keys)]
-        typed = [c for c in cands if pattern.search(compose(c[2], c[3]))]
+        shaped = (lambda text: states_price(text, q)) if pattern is MONEY else pattern.search
+        typed = [c for c in cands if shaped(compose(c[2], c[3]))]
         if not typed and pattern is DATE:   # a news release about the event is dated even if its text isn't
             typed = [c for c in cands if c[1].published]
         if not typed:   # (b) nothing on the site gives that kind of value for that thing

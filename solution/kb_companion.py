@@ -62,11 +62,19 @@ class Companion:
         answer, routes = self.cache[key]
         if answer is None or not routes or not (answer.confident or "_unpublished" in routes):
             return None       # (its "the site doesn't publish that rate" handler answers by declining)
-        if "_join_answer" in routes and OTHER_MEMBERSHIP.search(question):
+        if "_join_answer" in routes and (OTHER_MEMBERSHIP.search(question) or other_program(question)):
             return None       # "the automatic museum-membership benefit" is not about joining the credit union
         return copy.deepcopy(answer)
 
 
+def other_program(question: str) -> bool:
+    """'the Money Makeover's membership eligibility', 'may nonmember employees join Financial Wellness': the
+    question is about another named program's eligibility, not about joining the credit union."""
+    from kb_search import name_phrases
+    return any(not {w.lower() for w in words} & JOIN_WORDS for words in name_phrases(question))
+
+
+JOIN_WORDS = {"dupaco", "rural", "ideas", "network", "membership", "member", "members", "credit", "union", "join"}
 # another organisation's membership, or what members get, is not how to join: its join handler fires on any
 # "membership"
 OTHER_MEMBERSHIP = re.compile(r"[a-z]-membership\b|\bmembership\s+(?:benefits?|perks?|discounts?)\b", re.I)

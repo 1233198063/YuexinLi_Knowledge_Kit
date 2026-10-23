@@ -145,6 +145,16 @@ CONTROLS = {
         ("Could you look up my savings balance from these pages?", None, REFUSE, ()),
         ("What is the minimum balance to earn the 1st Rate Checking APY?", None, HAS("$5,000"), ()),
     ],
+    "a price of nothing, for the thing asked": [
+        ("Is there a charge for the Financial Wellness program for employers?", None, HAS("free"), ()),
+        ("How much does auto insurance from Dupaco cost per month?", None, REFUSE, ()),
+        ("What is the notary fee for a non-member?", None, HAS("$10.00"), ("$5.00",)),
+        ("As a non-member, what will Dupaco charge me to notarize something?", None, HAS("$10.00"), ("$5.00",)),
+    ],
+    "words that only look like the asked kind": [
+        ("Who provides securities through Dupaco, and why is the referral a conflict of interest?", None, HAS("LPL"), ()),
+        ("How many additional authorized users can an HSA have?", None, HAS("one additional"), ()),
+    ],
     "how-to, not a lookup": [
         ("How do I check my balance?", None, HAS(), ("I can't see your account",)),
         ("Can you check my checking balance for me?", None, REFUSE, ()),
