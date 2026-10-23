@@ -155,6 +155,12 @@ CONTROLS = {
         ("Did the rates table list Launchpad Savings?", "2026-08-27", HAS("not listed"), ()),
         ("Did the rates table list Launchpad Savings?", "2026-09-28", HAS("3.25%"), ()),
     ],
+    "places, zero tiers, wrapped lines": [
+        ("What's the address of the Galena, Illinois branch?", None, HAS("11375 Oldenburg"), ()),
+        ("Is anything earned on $40 in Share Savings?", None, HAS("$100"), ()),
+        ("What APY does $40,000 earn in Share Savings?", None, HAS("0.20%"), ("start at",)),
+        ("What's the largest cash back redemption allowed on the Rewards Visa?", None, HAS("maximum"), ()),
+    ],
     "a price of nothing, for the thing asked": [
         ("Is there a charge for the Financial Wellness program for employers?", None, HAS("free"), ()),
         ("How much does auto insurance from Dupaco cost per month?", None, REFUSE, ()),

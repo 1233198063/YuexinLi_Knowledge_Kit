@@ -85,7 +85,10 @@ ABBREV = re.compile(r"\b(St|Ave|Dr|Rd|Ln|Blvd|Mr|Mrs|Ms|Jr|Sr|Inc|Co|No|U\.S|a\.
 
 def sentences(text: str) -> list[str]:
     out = []
-    for line in re.sub(r"<br\s*/?>", "\n", text).split("\n"):   # layout tables pack whole lists into one cell
+    text = re.sub(r"<br\s*/?>", "\n", text)                     # layout tables pack whole lists into one cell
+    # a hard-wrapped line ("... redemption is $25.00 with the" / "maximum being $1,00.00.") continues the sentence
+    text = re.sub(r"(?<=[a-z,;$\d])[ \t]*\n(?=[a-z])", " ", text)
+    for line in text.split("\n"):
         merged = []
         for piece in (s.strip() for s in SENTENCE_END.split(line.strip()) if s.strip()):
             if merged and ABBREV.search(merged[-1]):

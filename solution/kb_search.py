@@ -141,7 +141,9 @@ def answer_kind(question: str) -> tuple[str, Optional[re.Pattern]]:
     if RATE_WORDS.search(re.sub(r"\b(1st|first) rate\b|\bconflicts? of interest\b", " ", ql)) and \
             not re.search(r"\b(credit score|qualif\w*|requirement\w*|eligib\w*|ltv|loan.to.value)\b", ql):
         return "a rate", RATE_VALUE
-    if re.search(r"\b(how much|fee|cost|charge|price|limits?)\b", ql):
+    if re.search(r"\b(how much|fee|cost|charge|price|limits?)\b", ql) or \
+            re.search(r"\b(minimum|maximum|smallest|largest|lowest|highest)\b[^?]{0,30}\b(redemptions?|redeem|deposits?|"
+                      r"withdrawals?|transfers?|payments?|purchases?|advances?)\b", ql):   # "the smallest redemption"
         return "an amount", MONEY
     return "", None
 
@@ -605,6 +607,7 @@ def context(c) -> frozenset:
 
 # Members' words -> the site's words (only the question is rewritten).
 SYNONYMS = [(re.compile(r"\b(?:expiry|expiration)\b", re.I), "expires"),       # "its expiry clock" ~ "expires eight months ..."
+            (re.compile(r"\bsmallest\b", re.I), "smallest minimum"), (re.compile(r"\b(?:largest|biggest)\b", re.I), "largest maximum"),
             # "a penalty for paying it off early" ~ "no prepayment penalties"
             (re.compile(r"\bpay(?:ing|s)?\s+(?:[\w-]+\s+){0,4}?off\s+early\b|\bpay(?:ing|s)?\s+off\s+(?:[\w$,.-]+\s+){0,5}?early\b"
                         r"|\bearly\s+pay-?off\b", re.I), lambda m: m.group(0) + " (prepayment)"),   # keeps "student loan"
@@ -631,7 +634,7 @@ KEY_IGNORE = frozenset(tokens("shown show shows showed displayed listed list lis
                               "reach go run compare compared comparison versus vs difference january february march "
                               "april may june july august september october november december explain describe "
                               "clock clocks timing rule rules detail details summarize tell something anything "
-                              "everything thing things stuff"))
+                              "everything thing things stuff smallest largest biggest"))
 # words that only say WHICH kind of answer is wanted: "what's the LINK to the branch locator?" is about the locator
 KIND_WORDS = {"a link": frozenset(tokens("link links url urls website web page site online address")),
               "that number": frozenset(tokens("number count total"))}
@@ -641,6 +644,7 @@ SHAPE_WORDS = frozenset(tokens("number numbers call phone telephone extension ex
 AMOUNT_WORDS = frozenset(tokens("fee fees cost costs charge charges price prices much pay amount limit limits "
                                 "per month monthly daily"))
 CHANNEL_WORDS = frozenset(tokens("phone telephone"))
+STATE_NAMES = frozenset(tokens("iowa illinois wisconsin minnesota missouri nebraska"))
 RATE_SHAPE_WORDS = frozenset(tokens("rate rates interest apr aprs apy apys yield dividend percentage"))
 # "has the number of branches CHANGED?" asks about time, not about sentences that contain "changed"
 CHANGE_ASKED = re.compile(r"\b(changed|previous(ly)?|used to|increased|decreased|raised|lowered|dropped)\b", re.I)
@@ -752,9 +756,11 @@ def search(view, question: str, idf: dict, today: date, defs: Optional[dict] = N
             # text about the thing asked: the candidates mentioning the most of its words ("Pennsylvania Avenue
             # ... Dubuque"); and when the question also names a product ("Visa Signature CARD"), text about that
             # product, not a news story that happens to say "Signature"
-            key = max(about, key=lambda t: (idf.get(t, 0.0), t))      # its most specific word must be there ("Mullan")
+            # (a state only qualifies a place - "Galena, Illinois" is written "Galena, IL" - so the place decides)
+            places = (about - STATE_NAMES) or about
+            key = max(places, key=lambda t: (idf.get(t, 0.0), t))     # its most specific word must be there ("Mullan")
             cands = [c for c in cands if mentions(c, key, acronyms, abbrev=True)]
-            count = {id(c): sum(mentions(c, t, acronyms, abbrev=True) for t in about) for c in cands}
+            count = {id(c): sum(mentions(c, t, acronyms, abbrev=True) for t in places) for c in cands}
             top = max(count.values(), default=0)
             cands = [c for c in cands if count[id(c)] == top]
             if products:

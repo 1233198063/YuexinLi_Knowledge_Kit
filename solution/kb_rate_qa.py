@@ -35,7 +35,7 @@ TIE_POLICY = os.environ.get("KB_TIE", "both")
 # ---------------------------------------------------------------- reading the question
 
 RATE_INTENT = re.compile(r"\b(rates?|apys?|aprs?|yields?|dividends?|interest|percent(age)?|quotes?|pricing)\b|%", re.I)
-EARN_INTENT = re.compile(r"\b(earn|earns|pay|pays|paying)\b", re.I)   # "what does a 12-month certificate pay?"
+EARN_INTENT = re.compile(r"\b(earn|earns|earned(?!\s+income)|earning(?!s\b)|pay|pays|paying)\b", re.I)   # "what does a 12-month certificate pay?"
 CHARGE_INTENT = re.compile(r"\b(charge|charges|charging)\b", re.I)    # "what are you charging for home loans?"
 # "did the 17-month special go up?" asks about its rate too
 MOVE_INTENT = re.compile(r"\b(go(ne)? up|went up|go(ne)? down|went down|chang\w*|increas\w*|decreas\w*|rais\w*|drop\w*)\b", re.I)
@@ -762,6 +762,12 @@ def answer_rate_question(view, question: str) -> Optional[RateAnswer]:
     if ties:
         lines.append("Note: equally authoritative pages dated the same day print different numbers for this "
                      "product, so both are shown; please confirm with Dupaco.")
+    if q.amounts and main and all(not any(_first_number(v) for v in r.rates.values()) for _, r in main):
+        # "Do I earn anything on $50?": that tier pays nothing; say where earning starts (the amount, not a rate)
+        higher = [r for _, r in winners if r.key == main[0][1].key and r.tier_lo is not None
+                  and r.tier_lo > max(q.amounts) and any(_first_number(v) for v in r.rates.values())]
+        if higher:
+            lines.insert(len(lines), f"Dividends start at {fmt_money(min(r.tier_lo for r in higher))}.")
     lines.append("Source: " + ", ".join(u for u, _, _ in urls[:3]))
 
     # stale values: rows from losing tables that would also have answered this question, and whose
