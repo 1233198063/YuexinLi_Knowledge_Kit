@@ -500,10 +500,10 @@ def main_number(cands):
     return [c for c in cands if top in found[id(c)]]
 
 
-def mentions(c, term: str, acronyms: set) -> bool:
+def mentions(c, term: str, acronyms: set, abbrev: bool = False) -> bool:
     """Does the candidate's context mention the term? An acronym the question wrote in capitals also
     counts when spelled out: 'VTO' is mentioned by '... called Volunteer Time Off ...'."""
-    if term in context(c):
+    if term in context(c) or (abbrev and abbrev_in(term, context(c))):   # a name: "avenu" is mentioned by "Ave."
         return True
     if term not in acronyms or len(term) < 3:
         return False
@@ -605,6 +605,17 @@ def search(view, question: str, idf: dict, today: date, defs: Optional[dict] = N
     unknown_acr = [a for a in acronyms if len(a) > 2 and a not in idf]
     if unknown_acr and not any(mentions(c, a, acronyms) for a in unknown_acr for c in cands):
         return dont_know(f"the website doesn't mention {' '.join(a.upper() for a in unknown_acr)}.")
+    if pattern is TIME and about:
+        # a branch's hours are a schedule block under "The phone number for the Mineral Point Road branch is ...
+        # Branch hours are:" in its opening release; the release as a whole is about that branch
+        key = max(about, key=lambda t: idf.get(t, 0.0))
+        on_page = {id(d): any(key in ch.terms for ch in d.chunks) for d in {id(c[1]): c[1] for c in cands}.values()}
+        sched = [(c, schedule_block(c[1], c[2], c[3])) for c in cands if on_page[id(c[1])]]
+        sched = [(c, s) for c, s in sched if TIME.search(s)]
+        if sched:
+            c, block = max(sched, key=lambda x: (x[0][0], x[0][1].published or date.min, x[0][1].url))
+            text = compose(c[2], c[3]).split("Branch hours are")[0].rstrip()     # the block repeats that line
+            return Hit(text=f"{text} {block}".strip(), doc=c[1], quote=c[2].sents[c[3]][0])
     if pattern:
         # the needed shape must appear in what we would answer (the sentence and the one or two after it),
         # in text about the thing asked ("Mullan Avenue" hours, not some other branch's hours)
@@ -613,8 +624,8 @@ def search(view, question: str, idf: dict, today: date, defs: Optional[dict] = N
             # ... Dubuque"); and when the question also names a product ("Visa Signature CARD"), text about that
             # product, not a news story that happens to say "Signature"
             key = max(about, key=lambda t: idf.get(t, 0.0))      # its most specific word must be there ("Mullan")
-            cands = [c for c in cands if mentions(c, key, acronyms)]
-            count = {id(c): sum(mentions(c, t, acronyms) for t in about) for c in cands}
+            cands = [c for c in cands if mentions(c, key, acronyms, abbrev=True)]
+            count = {id(c): sum(mentions(c, t, acronyms, abbrev=True) for t in about) for c in cands}
             top = max(count.values(), default=0)
             cands = [c for c in cands if count[id(c)] == top]
             if products:
@@ -652,7 +663,7 @@ def search(view, question: str, idf: dict, today: date, defs: Optional[dict] = N
     elif about and (names or acronyms):
         # no answer shape to check, but the question names something ("VTO usage last year?"): text about it
         key = max(about, key=lambda t: idf.get(t, 0.0))
-        cands = [c for c in cands if mentions(c, key, acronyms)] or cands
+        cands = [c for c in cands if mentions(c, key, acronyms, abbrev=True)] or cands
     if not cands:
         return None
     asked_years = set(YEAR.findall(question))
@@ -689,6 +700,10 @@ def search(view, question: str, idf: dict, today: date, defs: Optional[dict] = N
     section = ch.heading.split(" > ")[-1].strip()
     if section and len(section) <= 60 and not re.search(r"\d", section) and section.lower() not in text.lower():
         text = f"{section}: {text}"       # context ("Student Loans: ..."); never a heading with a number in it
+    if SCHEDULE_WORDS.search(question) and not TIME.search(text):
+        block = schedule_block(doc, ch, i)       # "the Platteville branch's phone number AND its Saturday hours"
+        if TIME.search(block):
+            text = text.split("Branch hours are")[0].rstrip() + " " + block
     if pattern is DATE and not DATE.search(text) and doc.published:
         text += f" (Dupaco news release published {doc.published:%B} {doc.published.day}, {doc.published.year}.)"
     text = status_prefix(question, text, today) + text + earlier_years(ch.sents[i], doc, cands)
