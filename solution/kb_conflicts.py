@@ -410,10 +410,12 @@ PCT_VALUE = re.compile(r"(\d+(?:\.\d+)?)%")
 
 def merge_twins(found: list[Found]) -> list[Found]:
     """The same change printed on twin products (personal / business / Roth / Traditional IRA versions of
-    one certificate special) is one contradiction: keep the plainest topic, mention the twins."""
+    one certificate special) is one contradiction: keep the plainest topic, mention the twins. Only the same product
+    apart from those words: a certificate and a personal loan that swapped 3% and 4% are two changes."""
     by_numbers = {}
     for c in found:
-        nums = frozenset(PCT_VALUE.findall(" ".join(v.split(" [")[0] for v in c.values)))
+        nums = (re.sub(r"\s+", " ", TWIN_WORD.sub(" ", c.topic)).strip().lower(),
+                frozenset(PCT_VALUE.findall(" ".join(v.split(" [")[0] for v in c.values))))
         if nums in by_numbers:
             keep = by_numbers[nums]
             twin_words = lambda f: len(re.findall(r"\b(business|roth|traditional|IRA)\b", f.topic))
@@ -427,6 +429,7 @@ def merge_twins(found: list[Found]) -> list[Found]:
     return list(by_numbers.values())
 
 
+TWIN_WORD = re.compile(r"\b(?:business|roth|traditional|ira)\b", re.I)
 VARIANT = re.compile(r"\b(jumbo|business|refinance|roth|traditional|ira)\b", re.I)
 
 
@@ -441,7 +444,8 @@ def _order(c: Found):
 def fold_variants(found: list[Found]) -> list[Found]:
     """A jumbo / business / refinance / IRA variant that changed in the same table update as its base product
     ("jumbo special 10-month certificate" with "special 10-month certificate") is part of that contradiction, not
-    a new one: its values join the base entry. A variant whose base didn't change stays on its own."""
+    a new one: its values join the base entry, each labelled with the variant, and its resolution is kept beside the
+    base's. A variant whose base didn't change stays on its own."""
     base = lambda t: re.sub(r"\s+", " ", VARIANT_WORD.sub("", t)).strip().lower()
     plain = {f.topic.lower(): f for f in found if not VARIANT.search(f.topic)}
     out = []
@@ -450,7 +454,10 @@ def fold_variants(found: list[Found]) -> list[Found]:
         if keep is None:
             out.append(f)
             continue
-        keep.values = keep.values + [v for v in f.values if v not in keep.values]
+        label = " ".join(dict.fromkeys(w.lower() for w in VARIANT.findall(f.topic)))
+        keep.values = keep.values + [f"{label}: {v}" for v in f.values]
+        if f.resolution and keep.resolution:
+            keep.resolution = f"{keep.resolution}; {f.resolution}"
         keep.sources = sorted(set(keep.sources) | set(f.sources))[:8]
         keep.reason = (keep.reason or "") + f" Same table update also changed: {f.topic}."
     return out

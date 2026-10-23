@@ -28,9 +28,9 @@ from typing import Optional
 
 from kb_pages import observed_in
 
-# Owner's policy choices, kept switchable so both can be measured (KB_TIE=decline, KB_BEFORE_FIRST=decline):
-# a true tie between equally trusted, equally dated pages shows both values with a note (default) or declines.
-TIE_POLICY = os.environ.get("KB_TIE", "both")
+# Owner's decision (2026-10-23): a true tie between equally trusted, equally dated pages is declined - the site
+# doesn't say which is current, and showing both prints a wrong value. KB_TIE=both shows both with a note.
+TIE_POLICY = os.environ.get("KB_TIE", "decline")
 
 # ---------------------------------------------------------------- reading the question
 
@@ -337,7 +337,7 @@ def parse_question(question: str) -> Optional[RateQuery]:
     # a product name implies its family ("What does a Holiday Club account earn?") and beats a bare family word
     # ("money-market yields were given for Share Savings": the question is about Share Savings)
     named = [f for f, names in Q_NAMES.items() if f not in ("certificate", "ira")
-             for _, rx in names if re.search(rx, ql)]
+             for _, rx in names if re.search(rx, asked_text)]      # "..., not Bright Savings": not a name asked
     family = families[0] if families and (not named or families[0] in named) else named[0] if named else ""
     if not family:
         return None
@@ -347,7 +347,7 @@ def parse_question(question: str) -> Optional[RateQuery]:
             or ((EXIST_INTENT.search(ql) or COMPARE_INTENT.search(ql)) and (Q_TERM.search(ql) or Q_AMOUNT.search(ql)))
             or MIN_OPEN.search(ql)):
         return None
-    names = {n for n, rx in Q_NAMES.get(family, []) if re.search(rx, asked_text)} or fuzzy_names(family, ql)
+    names = {n for n, rx in Q_NAMES.get(family, []) if re.search(rx, asked_text)} or fuzzy_names(family, asked_text)
     quals = {q for q, rx in Q_QUALS if re.search(rx, NEGATED.sub(" ", ql))}
     both = "business" in quals and bool(re.search(r"\b(?:personal|consumer|individuals?)\b", NEGATED.sub(" ", ql)))
     if both:
@@ -435,13 +435,15 @@ def _values(v: str) -> tuple:
     return tuple(float(x) for x in re.findall(r"\d+(?:\.\d+)?", v))
 
 
-def fill_metrics(winners, losers):
+def fill_metrics(winners, losers, today: Optional[date] = None):
     """The winning table may leave out a column another current page prints for the same product and tier
     (Achieve Money Market: the dated table has no "1st 6 months" promo columns, /earn-more has them). When every
-    number the two rows share is equal, the other row's extra columns are added: same fact, more detail."""
+    number the two rows share is equal, the other row's extra columns are added: same fact, more detail. Never from a
+    table not yet in effect on the download's date: its promo column is announced, not current."""
     others = defaultdict(list)
     for _, r in losers:
-        others[(r.key, r.slot)].append(r)
+        if not (today and r.effective and r.effective > today):
+            others[(r.key, r.slot)].append(r)
     out = []
     for d, r in winners:
         add = {}
@@ -515,14 +517,20 @@ def select(pairs, q: RateQuery):
     tiers = [t for t in tagged if not t[2] and t[1].tier_lo is not None]
     if q.amounts and any(t[1].tier_lo is not None for t in tagged):
         inside = lambda r, a: r.tier_lo is not None and r.tier_lo <= a <= r.tier_hi
-        fits = [t for t in tagged if all(inside(t[1], a) for a in q.amounts)] or \
-               [t for t in tagged if inside(t[1], q.amounts[0])]
-        narrowest = {}
-        for t in fits:                        # "$250,000" fits "$300,000 or less" AND "$832,750 or less": keep the tighter
-            k = (t[1].key, t[1].term_months, t[1].years)
-            if k not in narrowest or t[1].tier_hi - t[1].tier_lo < narrowest[k]:
-                narrowest[k] = t[1].tier_hi - t[1].tier_lo
-        tagged = [t for t in fits if t[1].tier_hi - t[1].tier_lo == narrowest[(t[1].key, t[1].term_months, t[1].years)]]
+        groups = [[t for t in tagged if all(inside(t[1], a) for a in q.amounts)]]
+        if not groups[0]:
+            # "the APYs for balances of $15,000 and $30,000": no one tier holds both, so two balances, each in its own
+            groups = [[t for t in tagged if inside(t[1], a)] for a in q.amounts]
+        kept = []
+        for fits in groups:
+            narrowest = {}
+            for t in fits:                    # "$250,000" fits "$300,000 or less" AND "$832,750 or less": keep the tighter
+                k = (t[1].key, t[1].term_months, t[1].years)
+                if k not in narrowest or t[1].tier_hi - t[1].tier_lo < narrowest[k]:
+                    narrowest[k] = t[1].tier_hi - t[1].tier_lo
+            kept += [t for t in fits if t not in kept
+                     and t[1].tier_hi - t[1].tier_lo == narrowest[(t[1].key, t[1].term_months, t[1].years)]]
+        tagged = kept
     if q.amounts:
         # a balance below the minimum to open / to earn doesn't get that rate; if nothing qualifies, the rows
         # stay and the answer says the amount is too small (user decision, 2026-10-21)
@@ -685,7 +693,7 @@ def answer_rate_question(view, question: str) -> Optional[RateAnswer]:
         return None       # a product no rate table names: text search
     today = date.fromisoformat(view.taken_on)
     winners, losers = compete(pairs, today)
-    winners = fill_metrics(winners, losers)
+    winners = fill_metrics(winners, losers, today)
     if named:             # "Mortgage Rate Relief Program": only rows of that product, from the current tables
         has = lambda r: all(w in re.sub(r"['’]", "", f"{r.caption} {r.display}".lower()) for w in named)
         winners = [(d, r) for d, r in winners if has(r)]

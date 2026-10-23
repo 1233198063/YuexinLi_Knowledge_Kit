@@ -107,6 +107,20 @@ CONTROLS = {
         ("Was a 96-month certificate listed in the September 28, 2026 rate table?", None, HAS("not listed"), ()),
         ("Is there a 96-month share certificate at Dupaco, and what does it earn?", None, REFUSE, ()),
     ],
+    # review 2026-10-23, 1: a product the question excludes never decides what is asked
+    "excluded product": [
+        ("What is the APY for a regular 6-month certificate, not Bright Savings?", None, HAS("3.40%"), ("2.25%",)),
+        ("What is the APY for a regular 6-month certificate?", None, HAS("3.40%"), ("2.25%",)),
+        ("What APY does Bright Savings pay?", None, HAS("2.25%"), ("3.40%",)),
+    ],
+    # review, 2: two products in one question are two questions; one product's term is never the other's
+    "two products, two questions": [
+        ("What is the APR for a 60-month auto loan on a 2025 vehicle, and what is the APY for a regular 6-month certificate?",
+         None, HAS("5.39%", "3.40%"), ("1.80%",)),
+        ("What is the APY for a regular 6-month certificate, and what is the APR for a 60-month auto loan on a 2025 vehicle?",
+         None, HAS("5.39%", "3.40%"), ("1.80%",)),
+        ("What is the APR for a 60-month auto loan on a 2025 vehicle?", None, HAS("5.39%"), ("3.40%",)),
+    ],
     "fee by phone, or the phone number": [
         ("How much is the fee to pay with a card over the phone?", None, HAS("$15.00"), ()),
         ("What phone number do I call about my credit card?", None, HAS("800-373-7600"), ()),
@@ -416,6 +430,62 @@ def check_mutations():
         page(f"{U}/calculators/certificate", "Calculator", "# Calculator\n\n" + table([(12, "2.90")], "03/01/2026"))]))
     a = kb.answer("What does a 12-month certificate pay?")
     cases.append(("calculator loses to the rate sheet", "3.40%" in a.text and "2.90%" not in a.text, a.text))
+
+    # M7 (review 2026-10-23, 3) a column filled in from another page never comes from a table not yet in effect
+    promo = [page(f"{U}/rates", "Rates", "# Rates\n\nAchieve Money Market\n\n| Account | APY |\n| --- | --- |\n"
+                  "| Achieve Money Market | 1.00% |\n\nRates are effective as of 03/01/2026."),
+             page(f"{U}/earn-more", "Earn more", "# Earn more\n\nAchieve Money Market\n\n| Account | APY | Introductory APY |\n"
+                  "| --- | --- | --- |\n| Achieve Money Market | 1.00% | 5.00% |\n\nRates are effective as of 04/01/2026.")]
+    kb = build()
+    kb.ingest(Snapshot("01", "2026-03-10", promo))
+    a = kb.answer("What is the introductory APY for Achieve Money Market?")
+    cases.append(("announced promo column is not filled in", "5.00%" not in a.text, a.text))
+    kb.ingest(Snapshot("02", "2026-04-15", promo))
+    a = kb.answer("What is the introductory APY for Achieve Money Market?")
+    cases.append(("...and is once in effect", "5.00%" in a.text, a.text))
+
+    # M8 (review, 6) two products that swapped the same two numbers are two conflicts, each with its own winner
+    kb = build()
+    for sid, day, cert, loan, eff in [("01", "2026-01-05", "3.00", "4.00", "01/01/2026"), ("02", "2026-03-05", "4.00", "3.00", "03/01/2026")]:
+        kb.ingest(Snapshot(sid, day, [page(f"{U}/rates", "Rates",
+            f"# Rates\n\nRegular Certificates\n\n| Term | APY |\n| --- | --- |\n| 6 Month | {cert}% |\n\n"
+            f"Rates are effective as of {eff}.\n\nPersonal Loans\n\n| Term | APR |\n| --- | --- |\n| 36 Months | {loan}% |\n\n"
+            f"Rates are effective as of {eff}.")]))
+    found = kb.conflicts()
+    cert = [c for c in found if "certificate" in c.topic.lower()]
+    loan = [c for c in found if "loan" in c.topic.lower()]
+    cases.append(("unrelated products with the same numbers stay apart",
+                  len(cert) == 1 and len(loan) == 1 and "4.00%" in (cert[0].resolution or "")
+                  and "3.00%" in (loan[0].resolution or ""), [(c.topic, c.resolution) for c in found]))
+
+    # M9 (review, 4) a date written in the question is the date for every route, the companion's too
+    kb = build()
+    for sid, day, grant in [("01", "2026-05-12", "$10,000"), ("02", "2026-09-28", "$15,000")]:
+        kb.ingest(Snapshot(sid, day, [page(f"{U}/newsroom/first-time-homebuyers-get-a-boost-dupaco-offers-fhlb-hometart-grants",
+            "Home$tart grants", f"# Home$tart grants\n\nThis initiative provides up to {grant} in assistance for first-time homebuyers.")]))
+    a = kb.answer("How much was the Home$tart grant in May 2026?")
+    cases.append(("date in the question reaches the companion", "$10,000" in a.text and "$15,000" not in a.text, a.text))
+    a = kb.answer("How much is the Home$tart grant?")
+    cases.append(("...and no date means now", "$15,000" in a.text and "$10,000" not in a.text, a.text))
+
+    # M10 (review, 5) two balances in one question: each its own tier; one balance: its tier only
+    tiers = page(f"{U}/rates", "Rates", "# Rates\n\nShare Savings\n\n| Balance | APY |\n| --- | --- |\n"
+                 "| $0.01 - $9,999.99 | 0.10% |\n| $10,000 - $24,999.99 | 0.15% |\n| $25,000+ | 0.20% |\n\n"
+                 "Rates are effective as of 03/01/2026.")
+    kb = build()
+    kb.ingest(Snapshot("01", "2026-03-10", [tiers]))
+    a = kb.answer("What are the Share Savings APYs for balances of $15,000 and $30,000?")
+    cases.append(("two balances: both tiers", "0.15%" in a.text and "0.20%" in a.text and "0.10%" not in a.text, a.text))
+    a = kb.answer("What is the Share Savings APY for a $30,000 balance?")
+    cases.append(("...one balance: its tier", "0.20%" in a.text and "0.15%" not in a.text, a.text))
+
+    # M11 (review, 7) a change answer cites the earlier download for the earlier number
+    kb = build()
+    kb.ingest(Snapshot("01", "2026-01-05", [page(f"{U}/rates", "Rates", "# Rates\n\n" + table([(6, "3.00")], "01/01/2026"))]))
+    kb.ingest(Snapshot("02", "2026-03-05", [page(f"{U}/rates", "Rates", "# Rates\n\n" + table([(6, "3.40")], "03/01/2026"))]))
+    a = kb.answer("Has the 6-month certificate APY changed?")
+    cases.append(("change answer cites both downloads", "3.00%" in a.text and "3.40%" in a.text
+                  and {s.snapshot_id for s in a.sources} >= {"01", "02"}, f"{a.text} {[s.snapshot_id for s in a.sources]}"))
 
     bad = [f"{name}  ->  {detail[:160]!r}" for name, ok, detail in cases if not ok]
     return "MUTATIONS", len(cases) - len(bad), len(cases), bad

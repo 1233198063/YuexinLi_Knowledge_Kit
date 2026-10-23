@@ -29,8 +29,10 @@ except ImportError:  # running outside the harness: find harness/contract.py in 
 from kb_companion import Companion  # noqa: E402
 from kb_conflicts import find_conflicts  # noqa: E402
 from kb_pages import SnapView, index_doc, make_doc, observed_in  # noqa: E402
-from kb_rate_qa import answer_rate_question, keep_asked_metrics, parse_question  # noqa: E402
-from kb_search import answer_kind, build_definitions, build_idf, search  # noqa: E402
+from kb_rate_qa import Q_FAMILIES, answer_rate_question, keep_asked_metrics, parse_question  # noqa: E402
+from kb_chunks import tokens  # noqa: E402
+from kb_search import (COVER_STOP, FILLER, KEY_IGNORE, PRODUCT_WORDS, SHAPE_WORDS, answer_kind,  # noqa: E402
+                       build_definitions, build_idf, name_phrases, search)
 
 
 MONTHS = {m: i for i, m in enumerate("jan feb mar apr may jun jul aug sep oct nov dec".split(), 1)}
@@ -80,6 +82,22 @@ def with_window_verdict(a: Answer, question: str) -> Answer:
     return Answer(text=f"{verdict} {a.text}", sources=a.sources, confident=a.confident, conflict_note=a.conflict_note)
 
 
+# answer kinds where the companion's broad handler modules may answer (kb_companion.specialist_answer)
+OPEN_KINDS = ("", "a rate", "a link", "that number", "how many times")
+
+
+def asked_covered(question: str, text: str, idf: dict) -> int:
+    """How many of the question's specific words that don't name its product an answer holds. "How many additional
+    HSA authorized users, what card do they get, who confirms qualified withdrawals?" is about the HSA, and its rate
+    table is too, but the table holds none of what was asked: a matched trigger, a number or a confident flag is not
+    a completed answer."""
+    floor = 0.25 * max(idf.values(), default=0.0)       # specific words only, whatever the size of the site
+    ql = question.lower()
+    product = set(tokens(" ".join(m.group(0) for _, rx in Q_FAMILIES for m in re.finditer(rx, ql))))
+    product |= {t for words in name_phrases(question) for t in tokens(" ".join(words))}
+    asked = {t for t in set(tokens(question)) - SHAPE_WORDS - KEY_IGNORE - COVER_STOP - FILLER - PRODUCT_WORDS - product
+             if idf.get(t, 0.0) >= floor and not re.fullmatch(r"[\d,.]+", t)}
+    return len(asked & set(tokens(text)))
 # a rate question that also asks the offer's timing or conditions, which only its text gives
 RATE_TERMS = re.compile(r"\b(window|expir\w*|clock|timing|deadline|posting|posts?|posted|qualif\w*|how long|"
                         r"valid|anchor|example payments?|monthly payments?)\b", re.I)
@@ -114,9 +132,10 @@ def date_in_question(question: str) -> Optional[str]:
         return INVALID
 
 
-# Owner's policy (2026-10-20): a date before the first download is answered from the earliest copy, with a
-# note; KB_BEFORE_FIRST=decline declines instead (measured, not the default)
-BEFORE_FIRST_POLICY = os.environ.get("KB_BEFORE_FIRST", "earliest")
+# Owner's decision (2026-10-23, replacing the 2026-10-20 rule): a date before the first download is declined - no
+# copy of the website from then exists, so the site doesn't say. KB_BEFORE_FIRST=earliest answers from the earliest
+# copy with a note instead.
+BEFORE_FIRST_POLICY = os.environ.get("KB_BEFORE_FIRST", "decline")
 INVALID = "invalid"   # a date that doesn't exist ("February 30, 2035"): no snapshot can be chosen for it
 
 
@@ -209,6 +228,9 @@ def split_question(question: str) -> list:
     nouns = [m.group(0) for m in SUBJECT_NOUN.finditer(first)]
     out = [first + "?"]
     for p in parts[1:]:
+        if SUBJECT_NOUN.search(p) or any(re.search(rx, p.lower()) for _, rx in Q_FAMILIES):
+            out.append(p + "?")      # it names its own product ("..., and the 17-month special in September?")
+            continue
         carried = names + nouns + ([] if figure.search(p) else figure.findall(first))
         subject = " ".join(dict.fromkeys(" ".join(carried).split()))
         out.append(f"{p}? ({subject})" if subject else p + "?")
@@ -304,12 +326,28 @@ class KnowledgeBase:
         first = self.snaps[0].taken_on if self.snaps else ""
         days = [d for d in asked_days(question, year) if (not cutoff or d.isoformat() <= cutoff) and d.isoformat() >= first]
         if self.companion is not None and len(days) < 2 and not parse_question(question):
-            # a text question about membership routes, wallets, contact routes, the correction policy or a card
-            # offer: the companion's specialist handler, when one answers (measured better on every dev bank)
-            special = self.companion.specialist_answer(question, cutoff)
-            if special is not None:
-                return Answer(text=special.text, confident=special.confident, conflict_note=special.conflict_note,
-                              sources=[Source(url=x.url, snapshot_id=x.snapshot_id, quote=x.quote) for x in special.sources])
+            # a text question one of the companion's typed handlers answers (kb_companion.py). Typed values this
+            # system answers well (phone, hours, address, branch, date or status, amount) take only its eight
+            # named specialists. The date passed is the one this system resolved, written in the question too.
+            kind = answer_kind(question.lower())[0]
+            found = self.companion.specialist_answer(question, as_of, broad=kind in OPEN_KINDS)
+            if found is not None:
+                special, named = found
+                special = Answer(text=special.text, confident=special.confident, conflict_note=special.conflict_note,
+                                 sources=[Source(url=x.url, snapshot_id=x.snapshot_id, quote=x.quote)
+                                          for x in special.sources])
+                if named:
+                    return special
+                # only one of its broad modules answered: they answer any question about a product with what they
+                # know of the product (its rate table for "how many HSA authorized users may be designated?"), so
+                # the answer holding more of what was asked wins, theirs on a tie
+                mine = self._answer_dated(question, cutoff, as_of, days)
+                idf = self.idf[self.snaps[-1].snapshot_id] if self.snaps else {}
+                ours = asked_covered(question, mine.text, idf) if mine.confident else 0
+                return special if asked_covered(question, special.text, idf) >= ours else mine
+        return self._answer_dated(question, cutoff, as_of, days)
+
+    def _answer_dated(self, question: str, cutoff: Optional[str], as_of: Optional[str], days: list) -> Answer:
         if len(days) < 2 and EVERY_SNAPSHOT.search(question):
             # "across all five snapshots", "in each crawl": every download, up to the date asked
             days = [date.fromisoformat(s.taken_on) for s in self.snaps if not cutoff or s.taken_on <= cutoff]
@@ -329,6 +367,11 @@ class KnowledgeBase:
                 # "As of January 10, ... $220,000 ...; and as of May 10, ... $250,000 ...?" with no as_of passed:
                 # each part as the site stood on its own date
                 return self.combine([self._answer_one(c, d or as_of, history) for c, d in zip(clauses, dated)])
+        families = {getattr(parse_question(c), "family", None) for c in clauses} - {None} if len(clauses) > 1 else set()
+        if len(families) > 1:
+            # "the APR for a 60-month auto loan, and the APY for a 6-month certificate": each product on its own,
+            # so one's term is never read as the other's
+            return self.combine([self._answer_one(c, as_of, history) for c in clauses])
         kinds = {question_kind(c) for c in clauses} if len(clauses) > 1 else set()
         if kinds <= {"rate", ""} and parse_question(question) and \
                 any(re.search(r"\b(?:tiers?|bands?|brackets?)\b", c, re.I) for c in clauses if question_kind(c) == ""):
@@ -378,7 +421,9 @@ class KnowledgeBase:
             if rate.confident:
                 text += self.coverage_note(asked, rate.effective)
                 if history and CHANGE_QUESTION.search(question):
-                    text += self.previous_rates(view, question, rate.text)
+                    before, cited = self.previous_rates(view, question, rate.text)
+                    text += before
+                    sources += [x for x in cited if (x.url, x.snapshot_id) not in {(y.url, y.snapshot_id) for y in sources}]
                 if RATE_TERMS.search(question):
                     # "the promotional APR, the posting WINDOW from opening and the EXPIRY clock": the rate table
                     # gives the APR, the offer's own words give its timing
@@ -407,27 +452,32 @@ class KnowledgeBase:
         text = keep_asked_metrics(text, question)       # "What APY ...?": not the dividend rate printed beside it
         text += self.coverage_note(asked, published=published) if hit.confident else ""
         if history and hit.confident and CHANGED_FACT.search(question):
-            text += self.previous_text(view, question, hit.quote)
+            before, cited = self.previous_text(view, question, hit.quote)
+            text += before
+            sources += [x for x in cited if (x.url, x.snapshot_id) not in {(y.url, y.snapshot_id) for y in sources}]
         return Answer(text=text, sources=sources, confident=hit.confident)
 
-    def previous_text(self, view, question: str, quote: str) -> str:
+    def previous_text(self, view, question: str, quote: str) -> tuple:
         """'Has the hardship grant amount changed?': the newest earlier download whose answer sentence gives
-        other figures, labelled as the past. Nothing when the figures are the same or there are none."""
+        other figures, labelled as the past, with its source (the old figure stays checkable). Nothing when the
+        figures are the same or there are none."""
         vals = lambda t: set(KEY_VALUE.findall(t or ""))
         now = vals(quote)
         if not now:
-            return ""
+            return "", []
         for prev in reversed([s for s in self.snaps if s.taken_on < view.taken_on]):
             old = search(prev, question, self.idf[prev.snapshot_id], date.fromisoformat(prev.taken_on),
                          self.defs[prev.snapshot_id])
             if old is not None and old.confident and vals(old.quote) and vals(old.quote) != now:
                 day = date.fromisoformat(prev.taken_on)
-                return f"\nBefore that (the website as of {day:%B} {day.day}, {day.year}): {old.quote}"
-        return ""
+                cited = [Source(url=old.doc.url, snapshot_id=observed_in(prev, old.doc), quote=old.quote)] if old.doc else []
+                return f"\nBefore that (the website as of {day:%B} {day.day}, {day.year}): {old.quote}", cited
+        return "", []
 
-    def previous_rates(self, view, question: str, current: str) -> str:
+    def previous_rates(self, view, question: str, current: str) -> tuple:
         """Only when the question asks about a change: the newest earlier download whose answer differs,
-        labelled as the past. Never in an ordinary answer, where an old number is the classic wrong answer."""
+        labelled as the past, with its sources. Never in an ordinary answer, where an old number is the classic
+        wrong answer."""
         body = lambda t: "\n".join(l for l in t.split("\n") if not l.startswith("Source:"))
         pcts = lambda t: sorted(set(re.findall(r"\d+(?:\.\d+)?%", body(t))))   # a relabelled table is no change
         for prev in reversed([s for s in self.snaps if s.taken_on < view.taken_on]):
@@ -435,8 +485,9 @@ class KnowledgeBase:
             if old is not None and old.confident and pcts(old.text) != pcts(current):
                 day = date.fromisoformat(prev.taken_on)
                 return (f"\nBefore that (the website as of {day:%B} {day.day}, {day.year}): "
-                        + " ".join(body(old.text).split("\n")))
-        return "\nThe earlier copies of the website show the same rates."
+                        + " ".join(body(old.text).split("\n")),
+                        [Source(url=u, snapshot_id=sid, quote=q) for u, q, sid in old.sources])
+        return "\nThe earlier copies of the website show the same rates.", []
 
     def coverage_note(self, asked: Optional[date], effective: Optional[list] = None,
                       published: Optional[date] = None) -> str:

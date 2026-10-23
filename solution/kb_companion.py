@@ -2,12 +2,16 @@
 The companion runtime (companion/, the owner's second build of this assessment, merged unchanged from
 github.com/yushengzheng421-cmd/knowledge at the commit in companion/SOURCE_COMMIT) as a specialist.
 
-Measured on every development bank, handler by handler, it beats this system on a few kinds of page:
-membership routes and application links, mobile wallets, contact routes, the privacy policy's correction
-procedure, card offers, the list of credit cards, rates the site doesn't publish (share-secured, construction
-loans) and the homebuyer grants. It is weaker everywhere else, including fees, branches, mortgages and generic
-search. So only answers from those handlers are used, and only for questions this system answers from text,
-not from its rate tables. Handlers with evidence only on the companion's own tuning bank are left out.
+Its typed handlers (deposits, loans, services, facts, features, product details) answer text questions about
+pages it knows well: membership routes, wallets, contact routes, the correction policy, card offers and lists,
+unpublished rates, grants, programs. Its answer is used only when this system would answer from text, not from its
+rate tables, and one of those handlers produced it - never its generic search or its guards:
+- its eight named specialists (SPECIALISTS, measured better on the dev banks outside its own tuning bank) replace
+  this system's answer;
+- its broad modules, which a fresh blind set (pre-registered, run once) showed worth adding (.836 against .819),
+  only for open answer kinds, never its facts module or the general part of its services module, and only when
+  their answer holds at least as much of what was asked as this system's (solution.asked_covered): they answer
+  any question about a product with what they know of it, a rate table for an FAQ question about the product.
 """
 import copy
 import importlib.util
@@ -36,6 +40,10 @@ class Companion:
             module = next(m for m in self.system._spine.modules if m.__name__.endswith(module_name))
             for name in names:
                 setattr(module, name, self._recording(getattr(module, name), name))
+        # its broad handler modules are recorded too (weighed against this system's answer by the caller); its
+        # generic search and its guards are still not used
+        for module in self.system._spine.modules:
+            module.answer = self._recording(module.answer, "module:" + module.__name__)
 
     def _recording(self, handler, name):
         def call(*args):
@@ -49,8 +57,11 @@ class Companion:
         self.system.ingest(snapshot)
         self.cache.clear()
 
-    def specialist_answer(self, question: str, as_of):
-        """The companion's answer if one of its specialist handlers produced it, else None."""
+    def specialist_answer(self, question: str, as_of, broad: bool = True):
+        """The companion's answer if one of its handlers produced it, else None. broad=False: only the eight named
+        specialist handlers (for questions asking a typed value - a phone number, hours, an address, a branch, a
+        date or status, an amount - where its other modules measured worse than this system). Returns (answer,
+        named): named is False when only its broad modules answered, which the caller weighs against its own."""
         key = (question, as_of)
         if key not in self.cache:
             self.routes.clear()
@@ -64,7 +75,12 @@ class Companion:
             return None       # (its "the site doesn't publish that rate" handler answers by declining)
         if "_join_answer" in routes and (OTHER_MEMBERSHIP.search(question) or other_program(question)):
             return None       # "the automatic museum-membership benefit" is not about joining the credit union
-        return copy.deepcopy(answer)
+        named = [r for r in routes if not r.startswith("module:")]
+        modules = {r for r in routes if r.startswith("module:")}
+        if not named and (not broad or modules <= {m for m in modules if m.endswith(("facts", "services"))}):
+            return None       # its facts module and the general part of its services module (beyond the named
+            # specialists) measured worse than this system on every dev bank outside its own tuning bank
+        return copy.deepcopy(answer), bool(named)
 
 
 def other_program(question: str) -> bool:
