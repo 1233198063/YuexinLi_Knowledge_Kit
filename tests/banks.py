@@ -1,7 +1,7 @@
 """
 Score this solution on every agent-authored question bank, with the unchanged organizer harness.
 
-    python tests/banks.py [--blind] [--only NAME]
+    python tests/banks.py [--blind] [--only NAME] [--submission DIR --results DIR]
 
 The banks were written by independent test-author agents from the snapshots (none is an organizer hidden set):
   ours-*     our test author (C:/Users/<you>/Desktop/hackathon-independent-eval)
@@ -11,6 +11,8 @@ The banks were written by independent test-author agents from the snapshots (non
 Development banks print per-bank scores and keep per-question output under results/banks/ for debugging.
 Blind banks (holdouts, confirmations) run only with --blind: they print aggregates, and their per-question output
 goes to a temporary folder that nothing reads - so they keep measuring how well fixes generalise.
+--submission scores another copy of the solution (an older commit, one change reverted) the same way, so two versions
+are compared on the same banks; --results keeps its per-question output apart.
 Items an author marked unresolved or quarantined are left out, as that author's rules require.
 Synthetic items run on their own scenario's snapshots, with the scenario's conflict gold when it has one.
 """
@@ -64,11 +66,14 @@ def scenario_gold(name: str, tmp: Path):
     return out
 
 
+SUBMISSION = ROOT / "solution"
+
+
 def harness(items, out: Path, snapshots=None, gold=None):
     out.mkdir(parents=True, exist_ok=True)
     qfile = out / "questions.jsonl"
     qfile.write_text("\n".join(json.dumps(i) for i in items), encoding="utf-8")
-    cmd = [sys.executable, "harness/run_eval.py", "--submission", "solution", "--eval", str(qfile), "--out", str(out)]
+    cmd = [sys.executable, "harness/run_eval.py", "--submission", str(SUBMISSION), "--eval", str(qfile), "--out", str(out)]
     if snapshots:
         cmd += ["--snapshots", str(snapshots)]
     if gold and Path(gold).exists():
@@ -117,7 +122,10 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--blind", action="store_true", help="also run holdout/confirmation banks (aggregates only)")
     ap.add_argument("--only", help="run one bank by name")
+    ap.add_argument("--submission", type=Path, default=SUBMISSION, help="solution folder to score")
+    ap.add_argument("--results", type=Path, default=ROOT / "results/banks", help="where dev-bank output goes")
     args = ap.parse_args()
+    globals()["SUBMISSION"] = args.submission.resolve()
     cols = ["items", "accuracy", "original_accuracy", "synthetic_accuracy", "consistency", "conflict_f1",
             "stale_traps", "errors", "original_total"]
     print(f"{'bank':15s}" + "".join(f"{c[:14]:>15s}" for c in cols))
@@ -126,13 +134,14 @@ def main():
         for name, files, blind, gold in BANKS:
             if (args.only and name != args.only) or (blind and not args.blind and args.only != name):
                 continue
-            base = Path(tmp) if blind else ROOT / "results/banks"
+            base = Path(tmp) if blind else args.results
             board[name] = run_bank(name, files, blind, gold, base)
             print(f"{name:15s}" + "".join(f"{'-' if board[name][c] is None else board[name][c]:>15}" for c in cols)
                   + (f"   ({board[name]['skipped']} items without snapshots)" if board[name]["skipped"] else ""))
-    out = ROOT / "results/scoreboard"
-    out.mkdir(parents=True, exist_ok=True)
-    (out / "banks.json").write_text(json.dumps(board, indent=2))
+    if args.submission.resolve() == (ROOT / "solution").resolve():
+        out = ROOT / "results/scoreboard"
+        out.mkdir(parents=True, exist_ok=True)
+        (out / "banks.json").write_text(json.dumps(board, indent=2))
 
 
 if __name__ == "__main__":

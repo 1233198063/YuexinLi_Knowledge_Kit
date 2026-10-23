@@ -104,7 +104,10 @@ def answer_kind(question: str) -> tuple[str, Optional[re.Pattern]]:
                 noun = noun[:-1] + "(?:y|ies)"     # the stem "county" must still match "118 counties"
             return "that number", re.compile(rf"{count}\s+(?:[\w’'-]+\s+){{0,3}}{noun}|\b{noun}\w*\s+(?:[\w’'-]+\s+)"
                                              rf"{{0,5}}(?:more than|over|nearly|about|approximately|almost|exceeding)\s+{count}", re.I)
-    if re.search(r"\b(phone|telephone|call|contact)\b", ql) or \
+    # the phone as a way to pay ("the fee when payment is made BY PHONE versus online") asks for an amount
+    channel = re.search(r"\b(?:by|over the|via|through the|on the)\s+(?:phone|telephone)\b", ql) and \
+        re.search(r"\b(fees?|costs?|charges?|price|how much)\b", ql)
+    if not channel and re.search(r"\b(phone|telephone|call|contact)\b", ql) or \
             re.search(r"\b(change|update|correct)\b.*\b(address|email|name)\b", ql):   # "how do I update my info" -> call ...
         return "a phone number", PHONE
     if is_status(ql):
@@ -115,7 +118,11 @@ def answer_kind(question: str) -> tuple[str, Optional[re.Pattern]]:
             (re.search(r"\b(when|open|close)\b", ql) and SCHEDULE_WORDS.search(ql)) or \
             (re.search(r"\b(when|open|close)\b", ql) and re.search(r"\b(lobby|lobbies|drive[- ]?(up|thru|through))\b", ql)):
         return "hours", TIME   # "when is the lobby open?" asks for hours; "when does the Hy-Vee branch close?" for a date
-    if re.search(r"\b(when|what date|which date|what day)\b", ql) or is_status(ql):
+    # "when" asking for a date, not "the fee WHEN payment is made by phone"
+    if re.search(r"(?:^|[,;?.]\s*)when\b|\bwhen\s+(?:does|do|did|is|was|will|can|could|should|are|were|would|has|"
+                 r"have|must)\b|\bwhen\s+(?:the|it|its|my|our|a|an|this|that)\s+(?:[\w'-]+\s+){0,3}(?:opens?|opened|"
+                 r"closes?|closed|starts?|started|ends?|ended|expires?|expired|matures?|launch\w*|begins?|began|"
+                 r"changed?|took effect|takes effect)\b|\b(what date|which date|what day)\b", ql) or is_status(ql):
         return "a date", DATE
     if re.search(r"\bwhich (branch|branches|location|locations|office|offices)\b", ql) or \
             (re.search(r"\bwhere (do|should|can|could) (i|we|members?|they) (go|bank)\b", ql)
@@ -143,7 +150,9 @@ december monday tuesday wednesday thursday friday saturday sunday""".split())
 STARTERS = frozenset("""what how is are can could do does did when where who whom whose which why will would should
 tell give please i my the a an any list show get find has have was were may after before if in on for at as
 there this that hi hello hey so and but okay ok last next since provide describe explain help need want
-looking also thanks thank""".split())
+looking also thanks thank during until within between from by with without about compare state name check
+confirm verify summarize using according based assuming suppose imagine im we're our its their these those
+sorry quick question just again same different every each all both either neither""".split())
 PRODUCT_NOUN = re.compile(r"\b([a-z][a-z-]+)\s+(?:(?:credit|debit|savings|checking)\s+)?"
                           r"(?:loans?|accounts?|cards?|mortgages?|certificates?|lines? of credit|propert(?:y|ies))\b")
 
@@ -162,8 +171,11 @@ def subject(question: str, idf: dict) -> tuple[str, set, set]:
     # the first word is capitalised anyway: it is a name only as part of a longer one ("Mullan Avenue ...?"),
     # not in "Number of branches?" or "Sorry, what was the routing number?"
     first_ok = len(words) > 1 and words[1][0].isupper() and base(words[0]) not in STARTERS
-    names = [w for k, w in enumerate(words) if w[0].isupper() and not w.isupper()
-             and (k > 0 or first_ok) and base(w) not in NOT_NAMES]
+    # every sentence's first word is capitalised anyway ("... routing number. What exact values ...?")
+    starts = {m.end() for m in re.finditer(r"[.?!:;]\s+", question)}
+    at_start = [k > 0 and question.find(w) in starts and base(w) in STARTERS for k, w in enumerate(words)]
+    names = [w for k, w in enumerate(words) if w[0].isupper() and not w.isupper() and not at_start[k]
+             and (k > 0 or first_ok) and base(w) not in NOT_NAMES and not re.fullmatch(r"(?i)po-?box", w)]
     acronyms = [w for w in words if len(w) > 1 and w.isupper() and w.lower() not in GENERIC_ACRONYMS]
     kinds = [m for m in PRODUCT_NOUN.finditer(question.lower())
              if m.group(1) not in STOP and m.group(1) not in GENERIC_KINDS]
@@ -174,7 +186,7 @@ def subject(question: str, idf: dict) -> tuple[str, set, set]:
 
 RUN = re.compile(r"[A-Z][\w'’-]*(?:\s+[A-Z][\w'’-]*)+")
 RUN_GENERIC = frozenset(tokens("program programs account accounts loan loans card cards rate rates branch branches "
-                               "office plan the of and dupaco"))
+                               "office plan the of and dupaco po box"))
 
 
 def name_runs(question: str) -> list:
@@ -534,7 +546,16 @@ SYNONYMS = [(re.compile(r"\bbecome (?:a |an )?(?:dupaco )?member\b", re.I), "joi
             (re.compile(r"\blobbies\b", re.I), "lobby")]
 # Question words that carry no topic ("how many branches does Dupaco operate NOW?", "what has Forbes SAID?")
 FILLER = frozenset(tokens("now currently current today presently right said say says nowadays these days "
-                          "operate operates run runs own owns about carry carries offer offers provide provides"))
+                          "operate operates run runs own owns about carry carries offer offers provide provides "
+                          "through via"))
+# Words about the archive or the answer's form, never about the thing asked: they can't be the word a typed value's
+# text must contain ("what APRs were SHOWN on the 2026-05-12 SNAPSHOT BOUNDARY", "the LOWEST its rate can GO")
+KEY_IGNORE = frozenset(tokens("shown show shows showed displayed listed list lists published posted snapshot snapshots "
+                              "crawl crawls crawled recrawl boundary captured downloaded copy copies version latest "
+                              "newest recent most supplied available matching match exact exactly give only highest "
+                              "lowest maximum max least top bottom floor ceiling cap capped band bands range ranges "
+                              "reach go run compare compared comparison versus vs difference january february march "
+                              "april may june july august september october november december"))
 # words that only say WHICH kind of answer is wanted: "what's the LINK to the branch locator?" is about the locator
 KIND_WORDS = {"a link": frozenset(tokens("link links url urls website web page site online address")),
               "that number": frozenset(tokens("number count total"))}
@@ -642,8 +663,20 @@ def search(view, question: str, idf: dict, today: date, defs: Optional[dict] = N
             # an amount, rate or cutoff must be the one asked about: the "lost debit card REPLACEMENT" fee, the
             # "AUTO INSURANCE" premium (two words for an amount), the "EUROS" exchange rate, the WIRE cutoff - not
             # some other fee, rate or deadline. If no text has them, the site doesn't say
-            keys = sorted(q - shape - SHAPE_WORDS, key=lambda t: (-idf.get(t, 0.0), t))[:2 if pattern is MONEY else 1]
-            cands = [c for c in cands if all(mentions(c, k, acronyms | {k}) for k in keys)]
+            # the keys are the question's most specific topic words - not its numbers, months or words about the
+            # archive ("SHOWN on the SNAPSHOT"). A key no text with such a value contains means the site doesn't
+            # give it ("EUROS" exchange rate): finding another word's value instead would answer something else
+            words = {t for t in q - shape - SHAPE_WORDS - KEY_IGNORE if not re.fullmatch(r"[\d,.]+", t)} or \
+                q - shape - SHAPE_WORDS
+            if pattern is MONEY:
+                # an amount: most of the question's three most specific words ("domestic", "international" wire;
+                # both of "cashier" check) - one generic word ("check") can't let another fee answer
+                top = sorted(words, key=lambda t: (-idf.get(t, 0.0), t))[:3]
+                need = -(-len(top) * 3 // 5)            # ceil(60%)
+                cands = [c for c in cands if sum(mentions(c, t, acronyms | {t}) for t in top) >= need]
+            else:
+                keys = sorted(words, key=lambda t: (-idf.get(t, 0.0), t))[:1]
+                cands = [c for c in cands if all(mentions(c, k, acronyms | {k}) for k in keys)]
         typed = [c for c in cands if pattern.search(compose(c[2], c[3]))]
         if not typed and pattern is DATE:   # a news release about the event is dated even if its text isn't
             typed = [c for c in cands if c[1].published]

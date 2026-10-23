@@ -33,14 +33,18 @@ from kb_search import answer_kind, build_definitions, build_idf, search  # noqa:
 
 MONTHS = {m: i for i, m in enumerate("jan feb mar apr may jun jul aug sep oct nov dec".split(), 1)}
 DATE_IN_QUESTION = re.compile(
-    r"\b(?:as of|in|on|during|by|back in|around|at the end of)\s+(?:the\s+)?(early|mid|late)?[-\s]?"
+    r"\b(?:as of|in|on|during|by|back in|around|at the end of|captured|crawled|downloaded|the|for an?)\s+(?:the\s+)?"
+    r"(early|mid|late)?[-\s]?"
     r"(?:(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(?:(\d{1,2})(?:st|nd|rd|th)?,?\s+)?(20\d\d)\b"
     r"|(\d{1,2})/(\d{1,2})/(20\d\d)\b|(20\d\d)-(\d\d)-(\d\d)\b)", re.I)
 PART_OF_MONTH = {"early": 5, "mid": 15, "late": 25}
 
 
 # "Has the 10-month jumbo rate changed?", "What was the previous 12-month certificate rate?"
-CHANGE_QUESTION = re.compile(r"\b(chang\w*|previous(ly)?|prior|used to|before( that| it)?|went (up|down)|go(ne)? (up|down)|"
+CHANGE_QUESTION = re.compile(r"\b(chang\w*|previous(ly)?|prior|used to|went (up|down)|go(ne)? (up|down)|"
+                             # "before that", not the time anchor "immediately before the June 9 crawl"
+                             r"before(?!\s+(?:the\s+)?(?:[a-z]+\.?\s+\d{1,2}(?:st|nd|rd|th)?,?\s+(?:20\d\d\s+)?)?"
+                             r"(?:crawl|snapshot|download|capture|copy|recrawl))( that| it)?|"
                              r"increas\w*|decreas\w*|rais\w*|lower(ed)?|drop\w*|old rate|last time)\b", re.I)
 
 
