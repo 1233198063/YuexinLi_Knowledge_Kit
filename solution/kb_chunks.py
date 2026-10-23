@@ -140,6 +140,7 @@ def chunk_page(text: str, title: str = "", url_path: str = "") -> list[Chunk]:
     # a heading is its own block even when no blank line sets it apart ("## Platinum Visa" right above its bullets)
     text = re.sub(r"(?m)^(#{1,6}[ \t]+\S.*)$", r"\n\1\n", text)
     blocks = [b.strip() for b in re.split(r"\n\s*\n", text) if b.strip()]
+    kicker = None     # (level, title) of the heading just read, while no text has followed it
     first_heading =next((i for i, b in enumerate(blocks) if "\n" not in b and HEADING.match(b)), 0)
     for i, block in enumerate(blocks):
         if i < first_heading and len(block) < 120:
@@ -148,9 +149,16 @@ def chunk_page(text: str, title: str = "", url_path: str = "") -> list[Chunk]:
         if m:
             flush()
             level = len(m.group(1))
+            title = m.group(2).strip().strip("*")
+            # a small "eyebrow" heading right above a bigger one ("##### POSITIVE PAY" / "## Stop Fraud Before It
+            # Starts") names the section that follows: keep it in that section's heading
+            if kicker and kicker[0] > level:
+                title = f"{kicker[1].title() if kicker[1].isupper() else kicker[1]}: {title}"
             heads = {k: v for k, v in heads.items() if k < level}
-            heads[level] = m.group(2).strip().strip("*")
+            heads[level] = title
+            kicker = (level, title)
             continue
+        kicker = None
         if _is_rate_table(block):
             flush()
             continue

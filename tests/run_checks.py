@@ -145,6 +145,12 @@ CONTROLS = {
         ("Could you look up my savings balance from these pages?", None, REFUSE, ()),
         ("What is the minimum balance to earn the 1st Rate Checking APY?", None, HAS("$5,000"), ()),
     ],
+    "how-to, not a lookup": [
+        ("How do I check my balance?", None, HAS(), ("I can't see your account",)),
+        ("Can you check my checking balance for me?", None, REFUSE, ()),
+        ("Where do I find Dupaco certificate rates online?", None, HAS("savings-account"), ()),
+        ("Where can I find a Dupaco branch or ATM online?", None, HAS("dupaco.com/contact"), ()),
+    ],
     "the named kind of product": [
         ("Is there a penalty for paying off a Dupaco student loan early?", None, HAS("prepayment"), ()),
         ("Is there a penalty for paying off a Dupaco home equity loan early?", None, HAS("paying it off early"), ()),
@@ -156,6 +162,10 @@ CONTROLS = {
         ("What free admission do Dupaco members get through the museum partnership?", None, HAS("museum"), ("Rural Ideas",)),
         ("Which Visa credit cards can individuals and businesses get from Dupaco?", None, HAS("Platinum", "Rewards", "Business"), ()),
         ("What interest rate does Dupaco publish for a share-secured loan?", None, REFUSE, ()),
+    ],
+    "a named feature, whole": [
+        ("Will Positive Pay release a check that doesn't match the business's records without its OK?", None, HAS("approv"), ()),
+        ("What is Dupaco's routing number? Include every digit.", None, HAS("273974581"), ()),
     ],
     "a named product beats a family word": [
         ("Leave the money market numbers aside: what APY does Share Savings pay on $12,000?", None, HAS("0.15%"), ("0.30%",)),

@@ -129,7 +129,8 @@ def answer_kind(question: str) -> tuple[str, Optional[re.Pattern]]:
              and not re.search(r"\bonline\b|\bgo to (join|apply|open|sign|enroll|find|see|check)", ql)):
         return "a branch", None    # the pattern is built in search(): a branch name the question doesn't contain
     if re.search(r"\b(link|url|web ?address|website|web ?page)\b", ql) or \
-            re.search(r"\b(join|apply|sign up|open|enroll|register)\b.*\bonline\b", ql):
+            re.search(r"\b(join|apply|sign up|open|enroll|register)\b.*\bonline\b", ql) or \
+            re.search(r"\b(where|find|locate|look up)\b.*\bonline\b", ql):     # "where can I find a branch online?"
         return "a link", URL
     if re.search(r"\b(address|located|location of|where is|where's)\b", ql):
         return "an address", ADDRESS
@@ -173,7 +174,10 @@ def subject(question: str, idf: dict) -> tuple[str, set, set]:
     first_ok = len(words) > 1 and words[1][0].isupper() and base(words[0]) not in STARTERS
     # every sentence's first word is capitalised anyway ("... routing number. What exact values ...?")
     starts = {m.end() for m in re.finditer(r"[.?!:;]\s+", question)}
-    at_start = [k > 0 and question.find(w) in starts and base(w) in STARTERS for k, w in enumerate(words)]
+    # ("...? Label the permit names.": like the first word, a name only as part of a longer one)
+    longer = lambda k: k + 1 < len(words) and words[k + 1][0].isupper()
+    at_start = [k > 0 and question.find(w) in starts and (base(w) in STARTERS or not longer(k))
+                for k, w in enumerate(words)]
     names = [w for k, w in enumerate(words) if w[0].isupper() and not w.isupper() and not at_start[k]
              and (k > 0 or first_ok) and base(w) not in NOT_NAMES and not re.fullmatch(r"(?i)po-?box", w)]
     acronyms = [w for w in words if len(w) > 1 and w.isupper() and w.lower() not in GENERIC_ACRONYMS]
@@ -187,6 +191,19 @@ def subject(question: str, idf: dict) -> tuple[str, set, set]:
 RUN = re.compile(r"[A-Z][\w'’-]*(?:\s+[A-Z][\w'’-]*)+")
 RUN_GENERIC = frozenset(tokens("program programs account accounts loan loans card cards rate rates branch branches "
                                "office plan the of and dupaco po box"))
+
+
+def name_phrases(question: str) -> list:
+    """The multi-word names name_runs() accepts, as the words written: 'Positive Pay' -> ['Positive', 'Pay']."""
+    out = []
+    for m in RUN.finditer(question):
+        words = m.group(0).split()
+        if (not question[:m.start()].strip() or re.search(r"[.?!:]\s*$", question[:m.start()])) and \
+                re.split(r"['’]", words[0].lower())[0] in STARTERS:
+            words = words[1:]
+        if len(words) >= 2 and name_runs(" ".join(words)):
+            out.append(words)
+    return out
 
 
 def name_runs(question: str) -> list:
@@ -675,6 +692,13 @@ def search(view, question: str, idf: dict, today: date, defs: Optional[dict] = N
     titled = [w for w in kind_words if not w.endswith(("ed", "ing")) and any(
         re.search(rf"\b{re.escape(w)}s?\s+(?:[a-z]+\s+)?(?:loans?|cards?|accounts?|mortgages?|certificates?|lines? of credit)\b",
                   c[2].heading, re.I) for c in cands)]
+    if not pattern:
+        # a named feature or product ("Positive Pay", "Shine Login Help") is answered from text that names it
+        # whole, when any does - not from a sentence that merely says "positive"
+        for words in name_phrases(question):
+            phrase = re.compile(r"\b" + r"[\s*_\-]+".join(re.escape(w) for w in words) + r"\b", re.I)
+            section = lambda c: c[2].heading + " " + c[2].text     # its section names it, if not the sentence itself
+            cands = [c for c in cands if phrase.search(section(c))] or cands
     if titled:
         # text about the named kind (in its heading or around it - not the URL: every consumer page's URL says
         # "personal"), when there is any; otherwise every candidate stays

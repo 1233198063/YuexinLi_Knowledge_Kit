@@ -55,7 +55,7 @@ CHANGE_QUESTION = re.compile(r"\b(chang\w*|previous(ly)?|prior|used to|went (up|
 # the asker's own account state, which only the bank's systems know
 PRIVATE_STATE = re.compile(r"\b(?:has|have|is|was|were|are|did)\s+my\b[^?]{0,80}?\b(?:been\s+)?(?:verified|approved|"
                            r"completed|processed|received|confirmed|posted|cleared|accepted|denied|declined)\b"
-                           r"|\b(?:what(?:'s| is| was)|check|tell me|show me|look up|find|give me)\b[^?]{0,70}\bmy\b[^?]{0,50}"
+                           r"|\b(?:what(?:'s| is| was)|tell me|show me|give me|(?:can|could|would|will) you (?:check|find|look up|see|get|pull up|confirm))\b[^?]{0,70}\bmy\b[^?]{0,50}"
                            r"\b(?:balance|transactions?|transaction amount|account number|member number|payment status|"
                            r"application status|loan status)\b(?![^?]*\b(?:apy|apr|rates?|interest|dividends?|earns?|"
                            r"requirements?|required|minimum|need|needed|tiers?)\b)"

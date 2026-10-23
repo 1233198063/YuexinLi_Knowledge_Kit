@@ -301,6 +301,8 @@ def parse_question(question: str) -> Optional[RateQuery]:
     ql = normalize(question)
     if CONDITION.search(ql):
         return None       # "what credit score do I need for the 6.25% HELOC rate?": the answer is in the text
+    if re.search(r"\bwhere\b[^?]*\b(?:find|see|look|check|view|get)\b[^?]*\b(?:online|website|site|web page|page)\b", ql):
+        return None       # "where do I find certificate rates online?" asks for the page, not the numbers
     # "the older CHECKING-PAGE examples", "an August checking table" name where a figure was printed, not the
     # product asked about - unless nothing else names one
     pages = re.sub(r"\b(?:checking|savings|money market)\s+(?:pages?|tables?|tabs?|sheets?)\b", " ", ql)
