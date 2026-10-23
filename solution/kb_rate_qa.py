@@ -44,11 +44,13 @@ EXIST_INTENT = re.compile(r"\b(is there|are there|do you (have|offer)|does dupac
                           r"offers?|offered|available)\b", re.I)
 # "how did the regular 36-month Roth IRA compare with the 17-month special?": two terms compared are two rates
 COMPARE_INTENT = re.compile(r"\b(compar\w*|differ\w*|versus|vs\.?|against|stacks? up|measures? up|relative to)\b", re.I)
+# "High-Yield Savings" names a product; its "yield" doesn't ask for the APY
+NAMED_YIELD = re.compile(r"\bhigh[- ]?yield\b", re.I)
 # a product NAME that contains "rate" isn't a rate question ("how do I avoid the fee on 1st Rate Checking?")
 RATE_IN_NAME = re.compile(r"\b(1st|first) rate\b", re.I)
 # "the purchase APR, not the intro rate", "the non-jumbo special": a qualifier named only to rule it out doesn't count
-NEGATED = re.compile(r"\b(?:not|excluding|other than|besides|rather than|instead of|except|don'?t|do not|without|"
-                     r"skip|leave out)\b[^,.;?]*"
+NEGATED = re.compile(r"\b(?:not|excluding|exclude[sd]?|omit(?:s|ted|ting)?|other than|besides|rather than|instead of|except|"
+                     r"don'?t|do not|without|skip|leave out|leave off)\b[^,.;?]*"
                      r"|\bnon-?\s?(?:jumbo|business|refinanc\w*|intro\w*|promo\w*)"
                      r"|\bkeep(?:ing)?\s+[^,.;?]{0,40}?\b(?:separate|apart|aside)\b", re.I)
 # what the question asks about the product is not its rate: a requirement, a limit, a term, a cost, a how-to.
@@ -379,7 +381,7 @@ def parse_question(question: str) -> Optional[RateQuery]:
     if extreme is None and BEST.search(ql):
         extreme = "max" if family in DEPOSITS else "min"      # best savings rate = highest, best loan rate = lowest
     m = Q_PCT.search(ql)
-    asked = NEGATED.sub(" ", ql)          # "the APY, not the dividend rate": only the APY is asked
+    asked = NAMED_YIELD.sub(" ", NEGATED.sub(" ", ql))   # "the APY, not the dividend rate": only the APY is asked
     named = [k for metric, rx in Q_METRICS if re.search(rx, asked) for k in METRIC_KEYS[metric]]
     if named and plain_rate_asked(ql):
         named += ["rate", "dividend"]       # "rate and APR": the nominal rate (or dividend rate) too
@@ -582,7 +584,7 @@ METRIC_WORDS = {"apy": r"APY|annual percentage yield", "apr": r"APR|annual perce
 
 
 def asked_metrics(question: str) -> set:
-    ql = NEGATED.sub(" ", question.lower())
+    ql = NAMED_YIELD.sub(" ", NEGATED.sub(" ", question.lower()))
     return {m for m, rx in Q_METRICS if re.search(rx, ql)} | ({"rate"} if plain_rate_asked(ql) else set())
 
 

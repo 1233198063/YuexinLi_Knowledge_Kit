@@ -155,6 +155,11 @@ CONTROLS = {
         ("Did the rates table list Launchpad Savings?", "2026-08-27", HAS("not listed"), ()),
         ("Did the rates table list Launchpad Savings?", "2026-09-28", HAS("3.25%"), ()),
     ],
+    "the asked metric, even next to a product name": [
+        ("Only the dividend rate for High-Yield Savings at $1,000,000, please - leave off the APY.", None, HAS("2.42%"), ("2.45%",)),
+        ("What does High-Yield Savings pay on $1,000,000?", None, HAS("2.42%", "2.45%"), ()),
+        ("Give the 10-month certificate special's dividend rate and omit its APY.", None, HAS("3.86%"), ("3.90%",)),
+    ],
     "places, zero tiers, wrapped lines": [
         ("What's the address of the Galena, Illinois branch?", None, HAS("11375 Oldenburg"), ()),
         ("Is anything earned on $40 in Share Savings?", None, HAS("$100"), ()),
