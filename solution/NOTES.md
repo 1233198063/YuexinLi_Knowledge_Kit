@@ -4,7 +4,8 @@
 
 - Python 3.9+ (tested on 3.11), **standard library only**. No API keys, no network calls, no LLM.
 - `answer()` accepts `as_of` as an ISO date or datetime, "2026-05", "May 2026" or "05/31/2026"; an unreadable date means the latest download. An unexpected error is answered with "I don't know" instead of crashing.
-- Ingesting the 5 snapshots takes about 12 s. Answers take about 0.1 s at p95.
+- Ingesting the 5 snapshots takes about 7 s. Answers take 0.07 s at p95 (0.1 s max) on the public file.
+- An impossible date ("2035-02-31", "February 30, 2035") is declined instead of silently answering from the latest download.
 
 ## Pipeline
 
@@ -19,8 +20,8 @@
 
 ## What counts as "current", in priority order
 
-1. **Rate tables: the newest "effective as of" date wins.** A table with no date counts as the oldest.
-2. **Then page trust:** rate sheet (1.0) > product page (0.9) > PDF document (0.7) > news (0.55) > campaign landing page (0.45) > blog (0.4) > calculator (0.3) > tag/listing page (0.1).
+1. **Rate tables: the newest "effective as of" date wins.** A table with no date counts as the oldest. A table that takes effect after the download date waits; if it is the only one, that day's rate is unknown. The date is read in any common wording ("Rates are effective as of 09/01/2026", "Effective January 8, 2036"), for one-line rate statements from the line nearest them.
+2. **Then page trust:** rate sheet (1.0) > product page (0.9) > PDF document (0.7) > news (0.55) > campaign landing page (0.45) > blog (0.4) > calculator (0.3) > tag/listing page (0.1). **Then the product's own page** over a copy of its table embedded in another product's page (the auto table on the checking page). Equally dated, equally trusted pages that still disagree get no invented winner: both values are shown with a note, and the conflict has no resolution.
 3. **Facts that only appear in news: the newest publish date wins.** A statement the site repeats on 3+ pages (press-release boilerplate) beats a one-off mention, and its newest copy answers. For example, "22 branch office locations" from the newest releases beats an old executive bio on /about that says "18 branches". Boilerplate also gets reworded over the years; when a reworded repeated statement about the same thing has newer copies, the newer wording wins ("membership totals more than 141,000 with assets exceeding $2.6 billion" → "has grown to more than 179,000 with assets exceeding $3.6 billion").
 4. **Expired pages ("This Offer Has Expired") are never used.**
 5. **Products compete as whole tables.** If the newest table no longer lists a tier, an older page that still lists it does not get to answer.
@@ -36,6 +37,14 @@
 - **Minimums are part of the fact.** A certificate row is shown with its minimum ("4.10% APY (minimum to earn $1,000.00)"). A balance below every matching row's minimum still gets the rate, but the answer starts by saying the amount doesn't qualify: "$500 is below the minimum to earn $1,000.00 ...".
 - **Rate, APY and APR are different numbers.** "Does it pay 4.06% APY?" is checked against APYs only: "No: 4.06% is the dividend rate ..., not its APY; its APY is 4.10%." A range ("15.50% – 21.00% APR") counts if it contains the number.
 
+## Only what was asked, but all of it
+
+- **The asked metric only.** "What APY ...?" gets the APY, not the dividend rate printed beside it; "rate and APR" gets both. Metrics, qualifiers and products named after "not / except / other than / keeping ... separate" are left out.
+- **The asked tier and product only.** "Personal and business cards", "regular and jumbo specials", "each balance tier and the top tier's threshold" list exactly those. A named product beats a bare family word ("money-market yields were given for Share Savings" is about Share Savings).
+- **Every asked part.** A question with several parts is split when the parts want different kinds of answer (a rate and a date). A text answer that leaves asked words uncovered adds up to two sentences that hold them, from its own section; another section of the same page only for a sentence holding two missing parts (a neighbouring branch or product is never borrowed). A rate question that also asks timing or conditions ("the posting window", "the expiry") adds the offer's own sentence.
+- **"Was X listed?"** is answered "No. It was not listed ... Listed then: ..."; "does Dupaco offer X?" is declined when no table lists it (a table without it doesn't prove there is none).
+- "A transfer posts on day 38: does it qualify?" against "during the first 37 days" starts with "No."
+
 ## "As of" questions
 
 - The answer comes from the latest snapshot taken on or before the date.
@@ -44,6 +53,7 @@
 - For a date **before the first download (2026-05-12)**, the system still answers from the earliest copy, but:
   - News published after that date is ignored.
   - A plain note follows. For rates: "these rates took effect by X, before the date you asked about, so they applied then too", or "these rates took effect after that date, so I don't know what applied then".
+- **Several days named side by side** ("the 60-month APR at the August 27 and September 28 crawls") are each answered as the site stood that day, labelled, equal answers said once; "how did it change from January to May" also gets every download in between. Parts of a question with their own dates ("As of January 10 ...; and as of May 10 ...") use their own dates when no `as_of` is passed. Dates are read in most wordings ("10 March 2035", "Mar. 10", "mid-March", "the August-27 snapshot"); a slash date is a table's own date, not a day to answer.
 - "Is X still open?" compares the closing date with the date asked. "Is X closed?" asks the opposite, so the same facts answer "Yes". A "when" question gets the date without a yes or no.
 
 ## When the system says "I don't know"
@@ -59,6 +69,8 @@ A loan kind the rate tables don't list ("construction loan", "land mortgage", "F
 A product the question names in capitals is answered only from rows of that product in the current tables. "Mortgage Rate Relief Program" was on /rates until June 2026; now only the never-updated /homebuying-guidance page lists it, so the latest answer is "the current rate tables no longer list it" (rule 5), while an "as of June 1, 2026" question gets 5.125%.
 
 A fee must be the fee asked about: the answer sentence has to mention the question's most specific word ("lost debit card REPLACEMENT", "CASHIER'S check"). The site lists neither of those two fees, so both are declined instead of being answered with some other debit-card fee.
+
+Also declined: the asker's own account state ("has my identity been verified?", "what is my balance?"); whether something is open now when the page says the next cycle "will be announced"; a rate whose only table had not taken effect yet.
 
 Otherwise the system answers with what the site says. Refusals contain no numbers.
 
@@ -95,33 +107,45 @@ Otherwise the system answers with what the site says. Refusals contain no number
 
 ## Results
 
-On `eval/public_eval.jsonl`:
+| layer | score |
+|---|---|
+| `eval/public_eval.jsonl` | **0.969** total, 0 stale-trap hits, consistency 1.0, speed 1.0. The only miss, `dup-005`, has no `must_include` and can't be scored without the LLM judge, so 0.969 is the most this file allows. |
+| harness self-test (5 questions + 1 conflict) | 1.0 |
+| `tests/sim_eval.jsonl`, our 330-question stand-in for the hidden set | 0.9592 total (accuracy 0.966, consistency 0.963) |
+| `tests/run_checks.py` | 190/190 |
 
-- **0.969**, with 0 stale-trap hits, consistency 1.0 and speed 1.0 (p95 under 0.1 s). Every question that names expected sources gets the source credit.
-- The only miss is `dup-005`, which has no `must_include` and can't be scored without the LLM judge, so 0.969 is the most this file allows without it. (The answer does read back every certificate rate, as its reference answer asks.)
-- The public file has no conflict gold, so this score doesn't measure `conflicts()`. Every paraphrase group in it has a single question, so its consistency score only tests asking the same question twice.
+The stand-in set holds every public question with six rewordings, "as of" questions on rate rows that changed, current values of changed facts, change questions and refusals.
 
-On `tests/sim_eval.jsonl`, a stand-in for the hidden set built by `tests/build_sim_eval.py` (330 questions, same format and scorer):
+`tests/run_checks.py` covers:
 
-- every public question with six rewordings (plain; messy: lower case, abbreviations, chatty context; and the public set's own command style) in its group;
-- "as of" questions on rate-sheet rows that changed, expected values read off /rates in each download, with the date passed as `as_of` or written only in the question;
-- current values of facts that changed, questions about the change itself, and extra refusals.
-- **0.961** (accuracy 0.966, consistency 0.941). The four misses are open questions with no answer shape ("What has Forbes said about Dupaco?", "Does Dupaco support mobile wallets?", "Tell me which mobile wallets I can add my Dupaco card to.", "VTO usage last year?").
+| suite | count |
+|---|---|
+| paraphrases (set A tuned on; set B written fresh) | 59 |
+| paired controls: each rule learned from a bank, in words no bank uses, in an equivalent and a minimally changed form | 24 |
+| review cases | 33 |
+| synthetic snapshots | 4 |
+| mutations (one rule, one changed input) | 11 |
+| determinism across two hash seeds | 59 |
 
-On an **independent** set written by a separate test-author session that never saw this code (226 development questions plus a 176-question holdout, each answer quoted from the snapshots; stored outside this repository):
+On **eleven agent-written banks** from four authors (about 1,400 items; organizer harness unchanged; holdout and confirmation banks run for aggregates only and never opened):
 
-| | before (`740de90`) | now |
+| bank | dev | blind |
 |---|---:|---:|
-| dev QA / total | 0.678 / 0.641 | 0.800 / 0.753 |
-| holdout QA / total | 0.679 / 0.571 | 0.711 / 0.609 |
+| our independent author (226 / 176) | 0.827 | 0.750 |
+| companion repository, km226 | 0.595 | - |
+| legacy509 (333 / 176) | 0.775 | 0.570 |
+| author A (100 / 60) | 0.741 | 0.498 |
+| author B (30 / 42) | 0.274 | 0.237 |
+| author C (36 / 36) | 0.840 | 0.349 |
 
-The dev set was used for debugging (generic fixes only); the holdout was only ever scored in aggregate. The gap between them is the honest measure: about a quarter of the dev gain carried over. The remaining misses are mostly fine-print questions (eligibility, limits, how-to) where lexical sentence matching picks the wrong sentence, and holdout conflicts of kinds this system does not detect (it matched 2 of 9).
+The companion repository's Parent45e1 mechanism suites (35 tests on made-up banks) pass 30. The five misses:
 
-`python tests/run_checks.py` covers what the public eval doesn't:
+- two policy differences, both kept here by the owner's decision: a true tie, and a date before the first download;
+- one wording requirement;
+- one semantic gap;
+- one yes/no question about a condition the page doesn't state.
 
-- **59 reworded questions** on the public topics. Set B (30) was written fresh and passed 27/30 on its first run; the three misses were then fixed, so it is no longer an untouched test.
-- **33 review and later cases**: rate vs APY vs APR, minimums, loan kinds the tables don't list, yes/no polarity, missing years, source snapshot ids, unlisted fees, a product only a stale page still shows, change questions, dates written in the question and reworded boilerplate (assets, counties).
-- **Synthetic snapshots** for cases the real data doesn't have: a term dropped from the newest table, a fee that changed.
+How these numbers moved commit by commit, what was tried and rejected, a same-bank comparison with the companion system, and the method are in `docs/ITERATIONS.md`, `docs/REPORT.md` and `docs/METHODOLOGY.md`.
 
 ## Developer tool
 
@@ -130,7 +154,9 @@ python solution/inspect_kb.py rates /rates                         # rate record
 python solution/inspect_kb.py chunks contact                       # paragraphs and sentences of a page
 python solution/inspect_kb.py ask "30 year mortgage rate" 2026-05-31   # answer + sources + conflict note
 python solution/inspect_kb.py history /rates                       # how a page changed across snapshots
-python tests/run_checks.py                                         # paraphrases, review cases, synthetic snapshots
+python tests/run_checks.py                                         # paraphrases, controls, review cases, synthetic, mutations, determinism
+python tests/banks.py --blind                                      # every agent-written bank (blind ones: aggregates only)
+python tests/scoreboard.py --label now                             # every layer in one table
 python tests/build_sim_eval.py && python harness/run_eval.py --submission solution --eval tests/sim_eval.jsonl --out results/sim
 python tests/show_misses.py results/sim tests/sim_eval.jsonl       # the questions a run got wrong
 ```
