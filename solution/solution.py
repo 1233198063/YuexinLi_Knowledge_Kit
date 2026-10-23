@@ -43,7 +43,8 @@ PART_OF_MONTH = {"early": 5, "mid": 15, "late": 25}
 # "Has the 10-month jumbo rate changed?", "What was the previous 12-month certificate rate?"
 CHANGE_QUESTION = re.compile(r"\b(chang\w*|previous(ly)?|prior|used to|went (up|down)|go(ne)? (up|down)|"
                              # "before that", not the time anchor "immediately before the June 9 crawl"
-                             r"before(?!\s+(?:the\s+)?(?:[a-z]+\.?\s+\d{1,2}(?:st|nd|rd|th)?,?\s+(?:20\d\d\s+)?)?"
+                             r"before(?!\s+(?:the\s+)?(?:next\s+|later\s+|following\s+|latest\s+|last\s+|"
+                             r"[a-z]+\.?\s+\d{1,2}(?:st|nd|rd|th)?,?\s+(?:20\d\d\s+)?)?"
                              r"(?:crawl|snapshot|download|capture|copy|recrawl))( that| it)?|"
                              r"increas\w*|decreas\w*|rais\w*|lower(ed)?|drop\w*|old rate|last time)\b", re.I)
 
@@ -73,6 +74,43 @@ def date_in_question(question: str) -> Optional[str]:
         return date(y, mo, d).isoformat()
     except ValueError:
         return None
+
+
+# Every day a question names, with or without its year: "at the August 27 and September 28 crawls", "the
+# August-27 and September-28 snapshot APRs", "between 2026-05-12 and 2026-06-09"
+NAMED_DAY = re.compile(r"\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?[\s-]+(\d{1,2})(?:st|nd|rd|th)?\b"
+                       r"(?:,?\s+(20\d\d)\b)?|\b(20\d\d)-(\d\d)-(\d\d)\b|\b(\d{1,2})/(\d{1,2})/(20\d\d)\b", re.I)
+# two days asked side by side: "August 27 AND September 28", "from May 12 TO June 9", "compare ... both dates"
+BETWEEN_DAYS = re.compile(r"^[\s,]*(?:and|to|through|versus|vs\.?|or|then)\b|^\s*[-–]\s*$", re.I)
+EACH_DAY = re.compile(r"\b(compar\w*|versus|vs\.?|between|both|each|chang\w*|differ\w*)\b", re.I)
+
+
+def named_days(question: str, year: int) -> list:
+    """-> [(date, match)] for each valid day named in the question, in order."""
+    out = []
+    for m in NAMED_DAY.finditer(question):
+        try:
+            if m.group(1):
+                d = date(int(m.group(3) or year), MONTHS[m.group(1).lower()[:3]], int(m.group(2)))
+            elif m.group(4):
+                d = date(int(m.group(4)), int(m.group(5)), int(m.group(6)))
+            else:
+                d = date(int(m.group(9)), int(m.group(7)), int(m.group(8)))
+        except ValueError:
+            continue
+        out.append((d, m))
+    return out
+
+
+def asked_days(question: str, year: int) -> list:
+    """'the 60-month APR at the August 27 and September 28 crawls' -> [Aug 27, Sep 28]: the same question asked
+    of each day. One day, or days that aren't asked side by side (a stale date quoted as an example), -> []."""
+    found = named_days(question, year)
+    days = sorted({d for d, _ in found})
+    if len(days) < 2:
+        return []
+    paired = any(BETWEEN_DAYS.search(question[a.end():b.start()]) for (_, a), (_, b) in zip(found, found[1:]))
+    return days if paired or EACH_DAY.search(question) else []
 
 
 def normalize_as_of(as_of) -> Optional[str]:
@@ -179,13 +217,40 @@ class KnowledgeBase:
                           confident=False)   # no numbers in a refusal
 
     def _answer(self, question: str, as_of: Optional[str] = None) -> Answer:
-        as_of = normalize_as_of(as_of) or date_in_question(question)   # "... as of May 2026?" written in the text
+        cutoff = normalize_as_of(as_of)
+        as_of = cutoff or date_in_question(question)   # "... as of May 2026?" written in the text
+        year = int((cutoff or (self.snaps[-1].taken_on if self.snaps else date.today().isoformat()))[:4])
+        # a day before the first download has no website to show ("the footnote's 03/03/2026" is a table date)
+        first = self.snaps[0].taken_on if self.snaps else ""
+        days = [d for d in asked_days(question, year) if (not cutoff or d.isoformat() <= cutoff) and d.isoformat() >= first]
+        if len(days) >= 2:
+            return self.by_day(question, days)
+        return self._answer_at(question, as_of)
+
+    def _answer_at(self, question: str, as_of: Optional[str], history: bool = True) -> Answer:
         clauses = split_question(question)
         if len(clauses) > 1 and len({question_kind(c) for c in clauses}) > 1:
             # two questions asking for different kinds of answer (a rate and a date, a fee and a limit): each is
             # answered on its own, so neither part is dropped
-            return self.combine([self._answer_one(c, as_of) for c in clauses])
-        return self._answer_one(question, as_of)
+            return self.combine([self._answer_one(c, as_of, history) for c in clauses])
+        return self._answer_one(question, as_of, history)
+
+    def by_day(self, question: str, days: list) -> Answer:
+        """'the 60-month APR at the August 27 and September 28 crawls': the question answered as the site stood on
+        each day, labelled with that day; days whose answer is the same are said once."""
+        groups = []    # [(days, answer)]
+        for d in days:
+            a = self._answer_at(question, d.isoformat(), history=False)
+            if groups and groups[-1][1].text == a.text:
+                groups[-1][0].append(d)
+            else:
+                groups.append(([d], a))
+        if len(groups) == 1:
+            return groups[0][1]
+        label = lambda ds: " and ".join(f"{d:%B} {d.day}, {d.year}" for d in ds)
+        parts = [Answer(text=f"As of {label(ds)}: {a.text}", sources=a.sources, confident=a.confident,
+                        conflict_note=a.conflict_note) for ds, a in groups]
+        return self.combine(parts)
 
     @staticmethod
     def combine(parts: list) -> Answer:
@@ -199,7 +264,7 @@ class KnowledgeBase:
         return Answer(text="\n".join(a.text for a in parts), sources=sources,
                       confident=any(a.confident for a in parts), conflict_note=" ".join(notes) or None)
 
-    def _answer_one(self, question: str, as_of: Optional[str] = None) -> Answer:
+    def _answer_one(self, question: str, as_of: Optional[str] = None, history: bool = True) -> Answer:
         view = self.view(as_of)
         asked = date.fromisoformat(str(as_of)[:10]) if as_of else None
         rate = answer_rate_question(view, question)   # step 2c: rate questions are answered from RateRows
@@ -207,7 +272,7 @@ class KnowledgeBase:
             text = rate.text
             if rate.confident:
                 text += self.coverage_note(asked, rate.effective)
-                if CHANGE_QUESTION.search(question):
+                if history and CHANGE_QUESTION.search(question):
                     text += self.previous_rates(view, question, rate.text)
             return Answer(
                 text=text, confident=rate.confident, conflict_note=rate.note,
@@ -225,7 +290,7 @@ class KnowledgeBase:
         text = re.sub(r"\b1?\.?(\d{3})\.(\d{3})\.(\d{4})\b", r"\1-\2-\3", hit.text)    # 1.800.373.7600 -> 800-373-7600
         text = keep_asked_metrics(text, question)       # "What APY ...?": not the dividend rate printed beside it
         text += self.coverage_note(asked, published=published) if hit.confident else ""
-        if hit.confident and CHANGED_FACT.search(question):
+        if history and hit.confident and CHANGED_FACT.search(question):
             text += self.previous_text(view, question, hit.quote)
         return Answer(text=text, sources=sources, confident=hit.confident)
 

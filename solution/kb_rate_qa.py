@@ -120,7 +120,8 @@ PLAIN_WORDS = frozenset("""a an the my your our any this that which what current
     some both these those more any do does you i we""".split())
 
 WORDNUM = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8,
-           "nine": 9, "ten": 10, "twelve": 12, "fifteen": 15, "twenty": 20, "thirty": 30}
+           "nine": 9, "ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14, "fifteen": 15,
+           "sixteen": 16, "seventeen": 17, "eighteen": 18, "nineteen": 19, "twenty": 20, "thirty": 30}
 Q_TERM = re.compile(r"\b(\d{1,3}|(?:twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)[- ](?:one|two|three|four|five|six|"
                     r"seven|eight|nine)|" + "|".join(WORDNUM) + r")\s*-?\s*(months?|mos?\b|years?|yrs?\b)", re.I)
 TENS = {"twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90}
@@ -135,8 +136,11 @@ def term_number(word: str) -> int:
 Q_AMOUNT = re.compile(r"\$\s?(\d[\d,]*(?:\.\d+)?)\s*(k|m|million|thousand)?\b|\b(\d+(?:\.\d+)?)\s*(k|thousand|million)\b", re.I)
 Q_YEAR = re.compile(r"\b(19[89]\d|20[0-3]\d)\b")
 Q_PCT = re.compile(r"(\d+(?:\.\d+)?)\s*%")
-MAX_WORDS = re.compile(r"\b(highest|maximum|max|most|top)\b", re.I)
-MIN_WORDS = re.compile(r"\b(lowest|cheapest|minimum|least)\b", re.I)
+# "minimum"/"maximum" alone is usually the deposit or loan amount ("the APY/minimum pair"); next to a rate word
+# ("the maximum APR", "minimum rate") it is the extreme
+RATE_NEAR = r"(?=\s+(?:[\w-]+\s+)?(?:rates?|aprs?|apys?|yields?|dividends?|interest)\b)"
+MAX_WORDS = re.compile(rf"\b(highest|most|top|(?:maximum|max){RATE_NEAR})\b", re.I)
+MIN_WORDS = re.compile(rf"\b(lowest|cheapest|least|(?:minimum|min){RATE_NEAR})\b", re.I)
 BEST = re.compile(r"\bbest\b", re.I)
 # the top (or bottom) balance tier itself, asked next to a balance: "...for $12,000, and the highest tier's APY/threshold"
 TOP_TIER = re.compile(r"\b(?:highest|top|largest|biggest|lowest|bottom|smallest)\b[^.?;]{0,60}"
@@ -279,7 +283,10 @@ def parse_question(question: str) -> Optional[RateQuery]:
     ql = normalize(question)
     if CONDITION.search(ql):
         return None       # "what credit score do I need for the 6.25% HELOC rate?": the answer is in the text
-    families = [f for f, rx in Q_FAMILIES if re.search(rx, ql)]
+    # "the older CHECKING-PAGE examples", "an August checking table" name where a figure was printed, not the
+    # product asked about - unless nothing else names one
+    pages = re.sub(r"\b(?:checking|savings|money market)\s+(?:pages?|tables?|tabs?|sheets?)\b", " ", ql)
+    families = [f for f, rx in Q_FAMILIES if re.search(rx, pages)] or [f for f, rx in Q_FAMILIES if re.search(rx, ql)]
     # a product name implies its family ("What does a Holiday Club account earn?") and beats a bare family word
     # ("money-market yields were given for Share Savings": the question is about Share Savings)
     named = [f for f, names in Q_NAMES.items() if f not in ("certificate", "ira")
@@ -297,7 +304,11 @@ def parse_question(question: str) -> Optional[RateQuery]:
     if both:
         quals.discard("business")     # "personal cards as well as business cards": both, the business ones after
     ruled_out = {q for q, rx in Q_QUALS for m in NEGATED.finditer(ql) if re.search(rx, m.group(0))}
-    if re.search(r"\b(standard|regular|ordinary|normal|ongoing|non-?jumbo)\b", ql):
+    pair = r"\s*(?:,|and|&|plus|as well as|versus|vs\.?|or)\s+(?:the\s+)?"
+    if "jumbo" in quals and (re.search(rf"\b(?:regular|standard|non-?jumbo){pair}jumbo\b|\bjumbo{pair}(?:regular|standard)\b", ql)
+                             or re.search(r"\b(?:regular|standard)\b", ql) and re.search(r"\b(?:each|both)\b", ql)):
+        quals.discard("jumbo")        # "the regular and jumbo 17-month specials": both, each with its own minimum
+    elif re.search(r"\b(standard|regular|ordinary|normal|ongoing|non-?jumbo)\b", ql):
         ruled_out |= SECONDARY - quals         # "the standard 10-month special": not the jumbo or intro rows
     terms = []
     for m in Q_TERM.finditer(ql):
@@ -317,7 +328,11 @@ def parse_question(question: str) -> Optional[RateQuery]:
                          r"20\d\d\b|\b20\d\d-\d\d(?:-\d\d)?\b|\b\d{1,2}/\d{1,2}/20\d\d\b", " ", ql)
         m = Q_YEAR.search(undated)
         year = int(m.group(1)) if m else word_year(undated)
-    extreme = "max" if MAX_WORDS.search(ql) else "min" if MIN_WORDS.search(ql) else None
+    # "its MINIMUM opening amount", "the maximum loan amount" name a requirement, not the lowest or highest rate
+    plain = re.sub(r"\b(?:minimum|maximum|max|min)\s+(?:(?:opening|initial|required|loan)\s+)?(?:amounts?|deposits?|"
+                   r"balances?|opening|to (?:open|earn)|credit|payments?|terms?|ltv)\b"
+                   r"|\b(?:opening|deposit|balance)\s+(?:minimums?|maximums?)\b", " ", ql)
+    extreme = "max" if MAX_WORDS.search(plain) else "min" if MIN_WORDS.search(plain) else None
     top_tier = bool(amounts and extreme and TOP_TIER.search(ql))
     if extreme is None and BEST.search(ql):
         extreme = "max" if family in DEPOSITS else "min"      # best savings rate = highest, best loan rate = lowest
