@@ -86,8 +86,9 @@ def date_in_question(question: str) -> Optional[str]:
 NAMED_DAY = re.compile(r"\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?[\s-]+(\d{1,2})(?:st|nd|rd|th)?\b"
                        r"(?:,?\s+(20\d\d)\b)?|\b(20\d\d)-(\d\d)-(\d\d)\b|\b(\d{1,2})/(\d{1,2})/(20\d\d)\b", re.I)
 # two days asked side by side: "August 27 AND September 28", "from May 12 TO June 9", "compare ... both dates"
-BETWEEN_DAYS = re.compile(r"^[\s,]*(?:and|to|through|versus|vs\.?|or|then)\b|^\s*[-–]\s*$", re.I)
-EACH_DAY = re.compile(r"\b(compar\w*|versus|vs\.?|between|both|each|chang\w*|differ\w*)\b", re.I)
+BETWEEN_DAYS = re.compile(r"^[\s,]*(?:[a-z'-]+\s+){0,3}?(?:and|to|through|versus|vs\.?|or|then)\b|^\s*[-–]\s*$", re.I)
+EACH_DAY = re.compile(r"\b(compar\w*|versus|vs\.?|between|both|each|chang\w*|differ\w*|mov(?:e|ed|es)|went|rose|fell|"
+                      r"shift\w*|trend\w*)\b", re.I)
 
 
 def named_days(question: str, year: int) -> list:

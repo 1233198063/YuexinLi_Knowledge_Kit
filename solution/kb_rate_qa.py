@@ -34,6 +34,9 @@ EARN_INTENT = re.compile(r"\b(earn|earns|pay|pays|paying)\b", re.I)   # "what do
 CHARGE_INTENT = re.compile(r"\b(charge|charges|charging)\b", re.I)    # "what are you charging for home loans?"
 # "did the 17-month special go up?" asks about its rate too
 MOVE_INTENT = re.compile(r"\b(go(ne)? up|went up|go(ne)? down|went down|chang\w*|increas\w*|decreas\w*|rais\w*|drop\w*)\b", re.I)
+# "is there a 96-month certificate?": whether a term exists is answered by the rate tables that list the terms
+EXIST_INTENT = re.compile(r"\b(is there|are there|do you (have|offer)|does dupaco (have|offer)|do they (have|offer)|"
+                          r"offers?|offered|available)\b", re.I)
 # a product NAME that contains "rate" isn't a rate question ("how do I avoid the fee on 1st Rate Checking?")
 RATE_IN_NAME = re.compile(r"\b(1st|first) rate\b", re.I)
 # "the purchase APR, not the intro rate", "the non-jumbo special": a qualifier named only to rule it out doesn't count
@@ -296,7 +299,8 @@ def parse_question(question: str) -> Optional[RateQuery]:
         return None
     intent = RATE_IN_NAME.sub(" ", ql)
     if not (RATE_INTENT.search(intent) or (family in DEPOSITS and EARN_INTENT.search(ql))
-            or (family not in DEPOSITS and CHARGE_INTENT.search(ql)) or MOVE_INTENT.search(ql)):
+            or (family not in DEPOSITS and CHARGE_INTENT.search(ql)) or MOVE_INTENT.search(ql)
+            or (EXIST_INTENT.search(ql) and Q_TERM.search(ql))):
         return None
     names = {n for n, rx in Q_NAMES.get(family, []) if re.search(rx, ql)} or fuzzy_names(family, ql)
     quals = {q for q, rx in Q_QUALS if re.search(rx, NEGATED.sub(" ", ql))}
@@ -304,9 +308,8 @@ def parse_question(question: str) -> Optional[RateQuery]:
     if both:
         quals.discard("business")     # "personal cards as well as business cards": both, the business ones after
     ruled_out = {q for q, rx in Q_QUALS for m in NEGATED.finditer(ql) if re.search(rx, m.group(0))}
-    pair = r"\s*(?:,|and|&|plus|as well as|versus|vs\.?|or)\s+(?:the\s+)?"
-    if "jumbo" in quals and (re.search(rf"\b(?:regular|standard|non-?jumbo){pair}jumbo\b|\bjumbo{pair}(?:regular|standard)\b", ql)
-                             or re.search(r"\b(?:regular|standard)\b", ql) and re.search(r"\b(?:each|both)\b", ql)):
+    # "the standard 17-month special and the jumbo one", "both the regular and the jumbo version": both
+    if "jumbo" in quals and re.search(r"\b(?:regular|standard)\b", ql) and             re.search(r"\b(?:and|each|both|versus|vs\.?|as well as|plus)\b", ql):
         quals.discard("jumbo")        # "the regular and jumbo 17-month specials": both, each with its own minimum
     elif re.search(r"\b(standard|regular|ordinary|normal|ongoing|non-?jumbo)\b", ql):
         ruled_out |= SECONDARY - quals         # "the standard 10-month special": not the jumbo or intro rows

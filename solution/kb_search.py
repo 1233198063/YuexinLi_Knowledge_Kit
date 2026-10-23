@@ -593,6 +593,7 @@ SHAPE_WORDS = frozenset(tokens("number numbers call phone telephone extension ex
                                "hours open time link url website page date day when"))
 AMOUNT_WORDS = frozenset(tokens("fee fees cost costs charge charges price prices much pay amount limit limits "
                                 "per month monthly daily"))
+CHANNEL_WORDS = frozenset(tokens("phone telephone"))
 RATE_SHAPE_WORDS = frozenset(tokens("rate rates interest apr aprs apy apys yield dividend percentage"))
 # "has the number of branches CHANGED?" asks about time, not about sentences that contain "changed"
 CHANGE_ASKED = re.compile(r"\b(changed|previous(ly)?|used to|increased|decreased|raised|lowered|dropped)\b", re.I)
@@ -688,15 +689,17 @@ def search(view, question: str, idf: dict, today: date, defs: Optional[dict] = N
             cands = [c for c in cands if all(abbrev_in(t, context(c)) for t in run)]
         shape = AMOUNT_WORDS if pattern is MONEY else RATE_SHAPE_WORDS if pattern is RATE_VALUE else \
             frozenset() if kind == "a cutoff time" else None
-        if shape is not None and q - shape - SHAPE_WORDS:
+        # the phone as the way to pay ("the fee to pay by PHONE") is what the amount is about, not an answer shape
+        shapes = SHAPE_WORDS - CHANNEL_WORDS if pattern is MONEY else SHAPE_WORDS
+        if shape is not None and q - shape - shapes:
             # an amount, rate or cutoff must be the one asked about: the "lost debit card REPLACEMENT" fee, the
             # "AUTO INSURANCE" premium (two words for an amount), the "EUROS" exchange rate, the WIRE cutoff - not
             # some other fee, rate or deadline. If no text has them, the site doesn't say
             # the keys are the question's most specific topic words - not its numbers, months or words about the
             # archive ("SHOWN on the SNAPSHOT"). A key no text with such a value contains means the site doesn't
             # give it ("EUROS" exchange rate): finding another word's value instead would answer something else
-            words = {t for t in q - shape - SHAPE_WORDS - KEY_IGNORE if not re.fullmatch(r"[\d,.]+", t)} or \
-                q - shape - SHAPE_WORDS
+            words = {t for t in q - shape - shapes - KEY_IGNORE if not re.fullmatch(r"[\d,.]+", t)} or \
+                q - shape - shapes
             if pattern is MONEY:
                 # an amount: most of the question's three most specific words ("domestic", "international" wire;
                 # both of "cashier" check) - one generic word ("check") can't let another fee answer. In a question

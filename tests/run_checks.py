@@ -10,6 +10,9 @@ Regression checks beyond the public eval. Run from the kit's top folder:
 3. SYNTHETIC    tiny made-up snapshots for situations the real data doesn't contain.
 4. MUTATIONS    one rule, one changed input each: future-effective tables, exact ties, a page missing from one
                 download, a removed fee row, an expired offer, a stale calculator.
+5. CONTROLS     paired controls for rules learned from bank items, in words no bank uses: an equivalent form
+                must keep the answer, a minimally changed one (actor, qualifier, day, polarity) must change it.
+6. DETERMINISM  the same answers under two hash seeds.
 Exit code 1 if anything fails.
 """
 import json
@@ -70,6 +73,71 @@ def refused(a, question=""):
     """Declined, and no number that the question didn't contain (the scorer's rule)."""
     extra = set(re.findall(r"\d+", a.text)) - set(re.findall(r"\d+", question))
     return not a.confident and not extra
+
+
+# ---------------------------------------------------------------- 1b. paired controls (anti-overfit gate)
+# Each rule added from a bank item is checked in words no bank uses: SAME forms must give the asked facts, and a
+# minimally CHANGED form (other actor, qualifier, day, polarity or clause order) must change the answer with it.
+# (question, as_of, values that must appear, values that must not appear)
+HAS = lambda *v: v
+CONTROLS = {
+    "regular and jumbo together": [
+        ("What APY and opening minimum go with the standard 17-month special and with the jumbo one?", None, HAS("4.10%", "4.20%", "$100,000"), ()),
+        ("Give me the 17-month special APY for both the regular version and the jumbo version.", None, HAS("4.10%", "4.20%"), ()),
+        ("What is the APY on the regular 17-month special?", None, HAS("4.10%"), ("4.20%",)),
+        ("What is the APY on the jumbo 17-month special?", None, HAS("4.20%"), ("4.10%",)),
+    ],
+    "personal and business cards": [
+        ("List the APRs on Dupaco's personal and business Visa cards.", None, HAS("12.50%", "21.00%", "15.50%", "20.50%"), ()),
+        ("How does the business Rewards Visa APR differ from the personal Rewards Visa APR?", None, HAS("21.00%", "20.50%"), ()),
+        ("What APR does the Business Rewards Visa charge?", None, HAS("20.50%"), ("21.00%",)),
+        ("What APR does the personal Rewards Visa charge?", None, HAS("21.00%"), ("20.50%",)),
+    ],
+    "each named day": [
+        ("What was the 60-month APR for a 2023 model-year car on August 27 and on September 28?", None, HAS("5.19%", "5.64%"), ()),
+        ("From the August 27 snapshot to the September 28 one, how did the 60-month APR on a 2023 car move?", None, HAS("5.19%", "5.64%"), ()),
+        ("What was the 60-month APR for a 2023 model-year car on August 27, 2026?", None, HAS("5.19%"), ("5.64%",)),
+        ("What is the 60-month APR for a 2023 model-year car today?", None, HAS("5.64%"), ("5.19%",)),
+    ],
+    "minimum: requirement or extreme": [
+        ("What is the minimum opening deposit and the APY for the 17-month jumbo special?", None, HAS("4.20%", "$100,000"), ()),
+        ("Which 17-month special has the minimum APY?", None, HAS("4.10%"), ("4.20%",)),
+    ],
+    "listed then, or offered at all": [
+        ("Was a 96-month certificate listed in the September 28, 2026 rate table?", None, HAS("not listed"), ()),
+        ("Is there a 96-month share certificate at Dupaco, and what does it earn?", None, REFUSE, ()),
+    ],
+    "fee by phone, or the phone number": [
+        ("How much is the fee to pay with a card over the phone?", None, HAS("$15.00"), ()),
+        ("What phone number do I call about my credit card?", None, HAS("800-373-7600"), ()),
+    ],
+    "a balance's tier and the top tier": [
+        ("For $15,000 in Share Savings what APY applies, and what are the APY and starting balance of the top tier?", None,
+         HAS("0.15%", "0.20%", "$25,000"), ()),
+        ("What APY does $15,000 earn in Share Savings?", None, HAS("0.15%"), ("0.20%",)),
+    ],
+    "every asked part": [
+        ("On Dupaco student loans, can I defer payments while in school, is there a graduated repayment option, and is "
+         "there an origination fee?", None, HAS("graduated", "$0"), ()),
+        ("What is the origination fee on Dupaco student loans?", None, HAS("$0"), ()),
+    ],
+    "a named product beats a family word": [
+        ("Leave the money market numbers aside: what APY does Share Savings pay on $12,000?", None, HAS("0.15%"), ("0.30%",)),
+        ("What APY does the Investor's Choice money market pay on $12,000?", None, HAS("0.30%"), ("0.15%",)),
+    ],
+}
+
+
+def check_controls(kb):
+    bad, total = [], 0
+    for rule, cases in CONTROLS.items():
+        for q, as_of, must, must_not in cases:
+            total += 1
+            a = kb.answer(q, as_of)
+            ok = refused(a, q) if must == REFUSE else all(v in a.text for v in must) and not any(v in a.text for v in must_not)
+            if not ok:
+                bad.append(f"[{rule}] {q}  want {must} not {must_not}  ->  {a.text[:180]!r}")
+    return "PAIRED CONTROLS", total - len(bad), total, bad
 
 
 def check_paraphrases(kb, name, items):
@@ -280,7 +348,7 @@ def check_determinism():
 def main():
     kb = load()
     results = [check_paraphrases(kb, "A (tuned)", TUNED), check_paraphrases(kb, "B (fresh)", FRESH),
-               check_review(kb), check_synthetic(), check_mutations(), check_determinism()]
+               check_controls(kb), check_review(kb), check_synthetic(), check_mutations(), check_determinism()]
     failed = 0
     for name, ok, total, bad in results:
         print(f"{name:24s} {ok}/{total}")
