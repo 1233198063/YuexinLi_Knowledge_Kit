@@ -11,6 +11,7 @@ Note: the harness loads this file without registering it in sys.modules, which b
 Keep dataclasses in the kb_* modules (normal imports) and only plain classes in this file.
 """
 import calendar
+import os
 import re
 import sys
 from datetime import date
@@ -113,6 +114,9 @@ def date_in_question(question: str) -> Optional[str]:
         return INVALID
 
 
+# Owner's policy (2026-10-20): a date before the first download is answered from the earliest copy, with a
+# note; KB_BEFORE_FIRST=decline declines instead (measured, not the default)
+BEFORE_FIRST_POLICY = os.environ.get("KB_BEFORE_FIRST", "earliest")
 INVALID = "invalid"   # a date that doesn't exist ("February 30, 2035"): no snapshot can be chosen for it
 
 
@@ -287,6 +291,9 @@ class KnowledgeBase:
     def _answer(self, question: str, as_of: Optional[str] = None) -> Answer:
         cutoff = normalize_as_of(as_of)
         as_of = cutoff or date_in_question(question)   # "... as of May 2026?" written in the text
+        if BEFORE_FIRST_POLICY == "decline" and as_of and self.snaps and as_of < self.snaps[0].taken_on:
+            return Answer(text="I don't know: I have no copy of the website from that date or earlier. Please "
+                               "contact Dupaco.", confident=False)
         if as_of == INVALID:
             return Answer(text="I don't know which date you mean: that date doesn't exist, so I can't tell which copy "
                                "of the website to use. Please give a valid date.", confident=False)

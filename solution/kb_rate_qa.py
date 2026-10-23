@@ -19,6 +19,7 @@ mortgage rows: the question goes to text search, which answers only from text ab
 """
 from __future__ import annotations
 
+import os
 import re
 from collections import defaultdict
 from dataclasses import dataclass, field, replace
@@ -26,6 +27,10 @@ from datetime import date
 from typing import Optional
 
 from kb_pages import observed_in
+
+# Owner's policy choices, kept switchable so both can be measured (KB_TIE=decline, KB_BEFORE_FIRST=decline):
+# a true tie between equally trusted, equally dated pages shows both values with a note (default) or declines.
+TIE_POLICY = os.environ.get("KB_TIE", "both")
 
 # ---------------------------------------------------------------- reading the question
 
@@ -714,6 +719,10 @@ def answer_rate_question(view, question: str) -> Optional[RateAnswer]:
         if doc.url not in [u for u, _, _ in urls]:
             urls.append((doc.url, r.raw, observed_in(view, doc)))
     ties = tied(main + extra)
+    if ties and TIE_POLICY == "decline":
+        return RateAnswer(text="I don't know which is current: equally authoritative pages dated the same day print "
+                               "different numbers for it. Please contact Dupaco.", confident=False,
+                          sources=sorted(urls[:3]))          # the same answer whatever order the pages came in
     if ties:
         lines.append("Note: equally authoritative pages dated the same day print different numbers for this "
                      "product, so both are shown; please confirm with Dupaco.")

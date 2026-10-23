@@ -313,7 +313,11 @@ def check_mutations():
         page(f"{U}/personal/certificate-specials", "Certificate specials", "# B\n\n" + table([(6, "3.25")], "03/01/2026"))]))
     a = kb.answer("What is the 6-month certificate APY?")
     six = [c for c in kb.conflicts() if "6-month" in c.topic]
-    cases.append(("exact tie: both values shown", "3.00%" in a.text and "3.25%" in a.text, a.text))
+    import kb_rate_qa
+    if kb_rate_qa.TIE_POLICY == "decline":       # the owner's other choice: decline, with no numbers
+        cases.append(("exact tie: declined", not a.confident and "3.00%" not in a.text and "3.25%" not in a.text, a.text))
+    else:
+        cases.append(("exact tie: both values shown", "3.00%" in a.text and "3.25%" in a.text, a.text))
     cases.append(("exact tie: conflict without a winner", bool(six) and six[0].resolution is None,
                   six[0].resolution if six else "no conflict"))
     # M2b the same date and trust, but one page is about the product and the other embeds a copy (a certificate
