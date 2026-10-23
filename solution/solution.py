@@ -49,6 +49,11 @@ CHANGE_QUESTION = re.compile(r"\b(chang\w*|previous(ly)?|prior|used to|went (up|
                              r"increas\w*|decreas\w*|rais\w*|lower(ed)?|drop\w*|old rate|last time)\b", re.I)
 
 
+# a rate question that also asks the offer's timing or conditions, which only its text gives
+RATE_TERMS = re.compile(r"\b(window|expir\w*|clock|timing|deadline|posting|posts?|posted|qualif\w*|how long|"
+                        r"valid|anchor)\b", re.I)
+
+
 # stricter for text answers, where "how do I change my address?" is not about a change on the site
 CHANGED_FACT = re.compile(r"\b(changed|previous(ly)?|used to|went (up|down)|gone (up|down)|increased|decreased|"
                           r"raised|lowered|dropped)\b", re.I)
@@ -105,7 +110,7 @@ def named_days(question: str, year: int) -> list:
 def asked_days(question: str, year: int) -> list:
     """'the 60-month APR at the August 27 and September 28 crawls' -> [Aug 27, Sep 28]: the same question asked
     of each day. One day, or days that aren't asked side by side (a stale date quoted as an example), -> []."""
-    found = named_days(question, year)
+    found = [(d, m) for d, m in named_days(question, year) if not m.group(7)]   # 06/15/2026: a table's own date
     days = sorted({d for d, _ in found})
     if len(days) < 2:
         return []
@@ -270,14 +275,22 @@ class KnowledgeBase:
         rate = answer_rate_question(view, question)   # step 2c: rate questions are answered from RateRows
         if rate is not None:
             text = rate.text
+            sources = [Source(url=u, snapshot_id=s, quote=q) for u, q, s in rate.sources]
             if rate.confident:
                 text += self.coverage_note(asked, rate.effective)
                 if history and CHANGE_QUESTION.search(question):
                     text += self.previous_rates(view, question, rate.text)
-            return Answer(
-                text=text, confident=rate.confident, conflict_note=rate.note,
-                sources=[Source(url=u, snapshot_id=s, quote=q) for u, q, s in rate.sources],
-            )
+                if RATE_TERMS.search(question):
+                    # "the promotional APR, the posting WINDOW from opening and the EXPIRY clock": the rate table
+                    # gives the APR, the offer's own words give its timing
+                    today = asked or date.fromisoformat(view.taken_on)
+                    terms = re.sub(r"\b(?:aprs?|apys?|rates?|interest|yields?|dividends?|percentages?|"
+                                   r"annual percentage \w+)\b", " ", question, flags=re.I)
+                    hit = search(view, terms, self.idf[view.snapshot_id], today, self.defs[view.snapshot_id])
+                    if hit is not None and hit.confident and hit.doc and hit.quote not in text:
+                        text += "\n" + hit.text
+                        sources.append(Source(url=hit.doc.url, snapshot_id=observed_in(view, hit.doc), quote=hit.quote))
+            return Answer(text=text, confident=rate.confident, conflict_note=rate.note, sources=sources)
         # step 3: everything else is answered with the sentence that holds the fact
         today = asked or date.fromisoformat(view.taken_on)    # "is it still open?" is judged on this day
         before_first = asked if asked and asked < date.fromisoformat(self.snaps[0].taken_on) else None

@@ -280,6 +280,35 @@ ANAPHORA = re.compile(r"^(This|That|It|These|Those|They|He|She)\b")
 BULLET = ("- ", "* ")
 
 
+COVER_STOP = frozenset(tokens("not no yes can could will would must may might should does did is are was were "
+                              "also still yet ever never i'm im"))
+
+
+def cover_rest(doc, ch, text: str, q: set, idf: dict) -> str:
+    """'Does the student-loan page permit deferring payments, name a GRADUATED option, and charge an ORIGINATION
+    fee?': the chosen sentences answer one part; sentences of the same section (same heading, on the same page) that
+    hold the parts still unanswered are added, at most two. Never another section: a neighbouring branch, product
+    or speaker is not what was asked."""
+    asked = {t for t in q - SHAPE_WORDS - KEY_IGNORE - COVER_STOP
+             if idf.get(t, 0.0) >= 2.0 and not re.fullmatch(r"[\d,.]+", t)}
+    missing = asked - set(tokens(text))
+    if len(asked) < 3 or not missing:
+        return ""
+    # its own section; another section of the page only for a sentence holding two of the missing parts
+    added = []
+    for _ in range(2):
+        best = max(((sum(idf.get(t, 0.0) for t in missing & terms), -c.pos, -k, s)
+                    for c in doc.chunks for k, (s, terms) in enumerate(c.sents)
+                    if s not in text and s not in added
+                    and len(missing & terms) >= (1 if c.heading == ch.heading else 2)),
+                   default=None)
+        if best is None:
+            break
+        added.append(best[3])
+        missing -= set(tokens(best[3]))
+    return "".join(f" {s}" for s in added)
+
+
 def compose(ch, i: int) -> str:
     """The winning sentence + the next one or two; if it introduces a bullet list, the whole list;
     if it IS one bullet of a list, the whole list (one eligibility rule out of three is a wrong answer).
@@ -670,8 +699,11 @@ def search(view, question: str, idf: dict, today: date, defs: Optional[dict] = N
                 q - shape - SHAPE_WORDS
             if pattern is MONEY:
                 # an amount: most of the question's three most specific words ("domestic", "international" wire;
-                # both of "cashier" check) - one generic word ("check") can't let another fee answer
-                top = sorted(words, key=lambda t: (-idf.get(t, 0.0), t))[:3]
+                # both of "cashier" check) - one generic word ("check") can't let another fee answer. In a question
+                # of several parts, the words of the part that asks the amount ("..., and charge an ORIGINATION fee?")
+                priced = {t for p in re.split(r"[,;?]|\band\b|\bor\b", question)
+                          if re.search(r"\b(fees?|costs?|charges?|price|how much)\b", p, re.I) for t in tokens(p)} & words
+                top = sorted(priced or words, key=lambda t: (-idf.get(t, 0.0), t))[:3]
                 need = -(-len(top) * 3 // 5)            # ceil(60%)
                 cands = [c for c in cands if sum(mentions(c, t, acronyms | {t}) for t in top) >= need]
             else:
@@ -731,7 +763,7 @@ def search(view, question: str, idf: dict, today: date, defs: Optional[dict] = N
     most = max(c[4] for c in mine)
     _, doc, ch, i, _ = min((c for c in mine if c[4] == most), key=lambda c: (c[2].pos, c[3]))
 
-    text = compose(ch, i)
+    text = compose(ch, i) + cover_rest(doc, ch, compose(ch, i), q, idf)
     section = ch.heading.split(" > ")[-1].strip()
     if section and len(section) <= 60 and not re.search(r"\d", section) and section.lower() not in text.lower():
         text = f"{section}: {text}"       # context ("Student Loans: ..."); never a heading with a number in it
