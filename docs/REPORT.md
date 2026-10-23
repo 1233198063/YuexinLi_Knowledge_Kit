@@ -17,12 +17,12 @@ and the bank results. It is written for reviewers of this assessment. Iteration 
 
   | bank | first solution → now |
   |---|---|
-  | our own independent holdout (blind) | 0.642 → **0.757** |
+  | our own independent holdout (blind) | 0.642 → **0.761** |
   | legacy holdout (blind) | 0.189 → **0.577** |
-  | C confirmation (blind) | 0.266 → **0.468** |
-  | B confirmation (blind) | 0.170 → **0.251** |
-  | A confirmation (blind) | 0.502 → **0.498** (flat) |
-  | development banks | gains of +0.02 (A) to +0.50 (C) each |
+  | C confirmation (blind) | 0.266 → **0.478** |
+  | B confirmation (blind) | 0.170 → **0.300** |
+  | A confirmation (blind) | 0.502 → **0.580** |
+  | development banks | gains of +0.10 (A) to +0.53 (C) each |
 
 - **Against the companion system** on the same banks with the same harness, each system is stronger on the banks
   its own process tuned on.
@@ -139,17 +139,17 @@ Both were run with the unchanged harness, the same snapshots and the same synthe
 
 | bank (items) | who tuned on it | this system | companion `2d6b8d6e` |
 |---|---|---:|---:|
-| ours-dev (226) | us | **0.856** | 0.678 (2 errors) |
-| ours-holdout (176), blind for both | nobody | **0.757** | 0.686 |
-| km226 (226) | companion | 0.673 | **0.979** (2 errors) |
+| ours-dev (226) | us | **0.867** | 0.678 (2 errors) |
+| ours-holdout (176), blind for both | nobody | **0.761** | 0.686 |
+| km226 (226) | companion | 0.675 | **0.979** (2 errors) |
 | legacy-dev (333) | companion | **0.800** | 0.652 |
 | legacy-holdout (176) | companion, round 1 | 0.577 | **0.769** |
-| A-dev (100) | companion; us since its release | **0.741** | 0.410 |
-| A-confirm (60) | companion, round 2 | 0.498 | **0.516** |
-| B-dev (30) | companion; us since its release | **0.274** | 0.268 |
-| B-confirm (42) | companion, round 2 | **0.251** | 0.141 |
-| C-dev (36) | companion; us since its release | **0.909** | 0.850 |
-| C-confirm (36), not shown to its solver | neither directly | 0.468 | **0.778** |
+| A-dev (100) | companion; us since its release | **0.817** | 0.410 |
+| A-confirm (60) | companion, round 2 | **0.580** | 0.516 |
+| B-dev (30) | companion; us since its release | **0.537** | 0.268 |
+| B-confirm (42) | companion, round 2 | **0.300** | 0.141 |
+| C-dev (36) | companion; us since its release | **0.941** | 0.850 |
+| C-confirm (36), not shown to its solver | neither directly | 0.478 | **0.778** |
 
 "This system" includes the merged companion handlers. Before the merge (`2500e91`) it scored C-dev 0.840 and
 C-confirm 0.369.
@@ -250,11 +250,11 @@ Effect, with blind banks run once:
 - **Matching is lexical.** A question worded far from the page ("what range follows" for "ongoing rate") can
   miss. A yes/no guard that declined when the answer didn't cover the question cost seven correct dev answers, so
   it was removed. Yes/no questions about a condition the page doesn't state can still get a confident answer.
-- **C-type neighbours.** Complete multi-part answers remain the largest measured gap (C-confirm 0.47 against
+- **C-type neighbours.** Complete multi-part answers remain the largest measured gap (C-confirm 0.48 against
   0.78), now outside the merged handlers' page families.
 - **A-confirm** didn't respond to any change. Its weak spots are unknown, by the blind rule.
-- **Conflicts.** F1 is 0.48 on our dev conflict gold and 0.09 on the holdout's. Kinds such as policy-text
-  contradictions aren't detected.
+- **Conflicts.** F1 is 0.57 on our dev conflict gold and 0.11 on the holdout's. Kinds such as branch-status
+  and policy-text contradictions aren't detected.
 - **Decisions for the owner**, where the companion's tests expect the other choice. Both are switches, measured
   in GENERALIZATION.md §8:
   1. A true tie: both values with a note here, declined there (`KB_TIE=decline`). No bank changes.

@@ -43,7 +43,9 @@ The columns show accuracy (the harness `qa_score`). The banks are described in �
 | `d3b3c6f` custody-suite fixes | 0.969 | 0.827 | 0.595 | 0.775 | 0.741 | 0.274 | 0.840 | 0.750 | 0.570 | 0.498 | 0.237 | 0.349 |
 | `2500e91` its winning mechanisms, reimplemented | 0.969 | 0.828 | 0.619 | 0.792 | 0.741 | 0.274 | 0.840 | 0.750 | 0.570 | 0.498 | 0.237 | 0.369 |
 | `f43a470` **companion merged as a specialist** | 0.969 | 0.838 | 0.668 | 0.795 | 0.741 | 0.274 | 0.901 | 0.757 | 0.577 | 0.498 | 0.237 | 0.436 |
-| `ce21637` three more specialist handlers (current) | 0.969 | 0.856 | 0.673 | 0.800 | 0.741 | 0.274 | 0.909 | 0.757 | 0.577 | 0.498 | 0.251 | 0.468 |
+| `ce21637` three more specialist handlers | 0.969 | 0.856 | 0.673 | 0.800 | 0.741 | 0.274 | 0.909 | 0.757 | 0.577 | 0.498 | 0.251 | 0.468 |
+| `e957c52` named features, eyebrow headings | 0.969 | 0.859 | 0.675 | 0.800 | 0.819 | 0.368 | 0.925 | 0.757 | 0.576 | 0.506 | 0.284 | 0.478 |
+| `7cdf25d` **pages' FAQs kept** (current) | 0.969 | 0.867 | 0.675 | 0.800 | 0.817 | 0.537 | 0.941 | 0.761 | 0.577 | 0.580 | 0.300 | 0.478 |
 
 Commits that only touched tests or docs are left out, as are runs with identical scores (`b17b9fe`, `bdd8e5b`,
 `51ddee3`, `51bbd72`, `f576948`). Raw outputs are kept outside the repository: they contain snapshot text.
@@ -190,6 +192,27 @@ The commits:
 - `eb0a5ca` made the two owner policies switchable and measured them. Declining a date before the first download:
   C-confirm +0.056, km226 +0.020. Declining a true tie: no change. Defaults kept until the owner decides.
   Also added `docs/GENERALIZATION.md`.
+- `5f7e3f6` conflicts: a variant changed in its base product's table update joins that conflict (36 → 28 entries,
+  no gold conflict lost). Conflict F1: ours-dev .48 → .57, km226 .15 → .18, blind holdout .089 → .108.
+- `e957c52` came from A-dev and B-dev failures:
+  - a multi-word name ("Positive Pay") restricts open questions to sections naming it as a phrase;
+  - an eyebrow heading ("##### POSITIVE PAY" above "## Stop Fraud Before It Starts") stays in the heading path;
+  - a capitalised verb starting a later sentence is not a name;
+  - "where can I find X online" asks for a link;
+  - the private-account guard fires only for lookups, not how-to questions.
+
+  A-confirm moved for the first time (.498 → .506).
+- `7cdf25d` **the biggest data fix.** The cleaner cut every page at its "Handpicked for You" block, and product
+  pages put their FAQ after it, so the savings, cash-management and other FAQs were never indexed. Now only the
+  block goes. With them:
+  - entities escaped twice are decoded;
+  - "non-members" indexes as both "nonmembers" and "members";
+  - "a price of nothing" counts only for the thing asked;
+  - counts in words are read;
+  - "conflict of interest" is not a rate.
+
+  Blind A-confirm .506 → .580, B-confirm .284 → .300. A second ranking rule (any section titled with a named phrase
+  wins) was measured on the dev banks and dropped.
 
 ### Decisions left to the owner
 
