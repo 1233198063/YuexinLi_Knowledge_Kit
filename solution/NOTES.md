@@ -85,7 +85,7 @@ Otherwise the system answers with what the site says. Refusals contain no number
   - The same change printed on twin products (personal, business, Roth, Traditional) is merged into one conflict.
 - **Text:** boilerplate repeated on 3+ pages whose numbers changed (branches 24 → 23 → 22; counties 108 → 112 → 118), one conflict per statement, plus running counts ("fourth" → "fifth time Forbes recognized Dupaco"). One-off yearly figures describe different years and are left out.
 - **Page changes:** an undated page (product page, PDF) that changed a dollar figure between downloads: hardship grants "up to $2,000" → "$3,500" (two pages, one conflict), Rewards Visa minimum cash-back redemption $50.00 → $25.00. Calculators, rate-bearing paragraphs (payment examples) and sentences used twice on one page with different figures are skipped.
-- The list is ordered most specific first. It has 35 conflicts on the provided snapshots. Rates are compared as numbers, so "20.5%" and "20.50%" are the same value, not a conflict.
+- The list is ordered most specific first. It has 36 conflicts on the provided snapshots. Rates are compared as numbers, so "20.5%" and "20.50%" are the same value, not a conflict.
 
 ## Known limitations
 
@@ -107,6 +107,15 @@ On `tests/sim_eval.jsonl`, a stand-in for the hidden set built by `tests/build_s
 - "as of" questions on rate-sheet rows that changed, expected values read off /rates in each download, with the date passed as `as_of` or written only in the question;
 - current values of facts that changed, questions about the change itself, and extra refusals.
 - **0.961** (accuracy 0.966, consistency 0.941). The four misses are open questions with no answer shape ("What has Forbes said about Dupaco?", "Does Dupaco support mobile wallets?", "Tell me which mobile wallets I can add my Dupaco card to.", "VTO usage last year?").
+
+On an **independent** set written by a separate test-author session that never saw this code (226 development questions plus a 176-question holdout, each answer quoted from the snapshots; stored outside this repository):
+
+| | before (`740de90`) | now |
+|---|---:|---:|
+| dev QA / total | 0.678 / 0.641 | 0.800 / 0.753 |
+| holdout QA / total | 0.679 / 0.571 | 0.711 / 0.609 |
+
+The dev set was used for debugging (generic fixes only); the holdout was only ever scored in aggregate. The gap between them is the honest measure: about a quarter of the dev gain carried over. The remaining misses are mostly fine-print questions (eligibility, limits, how-to) where lexical sentence matching picks the wrong sentence, and holdout conflicts of kinds this system does not detect (it matched 2 of 9).
 
 `python tests/run_checks.py` covers what the public eval doesn't:
 
