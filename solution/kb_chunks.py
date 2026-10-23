@@ -137,8 +137,10 @@ def chunk_page(text: str, title: str = "", url_path: str = "") -> list[Chunk]:
             emit("\n\n".join(pending))
             pending.clear()
 
+    # a heading is its own block even when no blank line sets it apart ("## Platinum Visa" right above its bullets)
+    text = re.sub(r"(?m)^(#{1,6}[ \t]+\S.*)$", r"\n\1\n", text)
     blocks = [b.strip() for b in re.split(r"\n\s*\n", text) if b.strip()]
-    first_heading = next((i for i, b in enumerate(blocks) if "\n" not in b and HEADING.match(b)), 0)
+    first_heading =next((i for i, b in enumerate(blocks) if "\n" not in b and HEADING.match(b)), 0)
     for i, block in enumerate(blocks):
         if i < first_heading and len(block) < 120:
             continue          # byline / date / read-time above the title: metadata, not content

@@ -196,6 +196,11 @@ def word_amounts(ql: str) -> list:
         if m.group(1) in ("a", "an") and m.group(2) != "million":
             continue
         out.append(n * (1_000_000 if m.group(2) == "million" else 1_000))
+    # "nineteen hundred dollars" 1,900; "five hundred bucks" 500 (dollars named: "nineteen hundred" alone may be a year)
+    for m in re.finditer(num + r"[- ]hundred[- ](?:dollars?|bucks)\b", ql):
+        words = re.split(r"[- ]", m.group(1))
+        n = float(m.group(1)) if m.group(1)[0].isdigit() else sum(SMALL[w] for w in words if w in SMALL)
+        out.append(n * 100)
     return out
 
 
@@ -355,7 +360,14 @@ def table_rank(doc, row, today: Optional[date] = None):
     """Rule 2 then rule 3, then a fixed tie-break so the same question always gets the same answer. A table that
     takes effect after `today` (the download's date) is announced, not current: it ranks below every table in effect."""
     pending = bool(today and row.effective and row.effective > today)
-    return (not pending, row.effective or date.min, doc.authority, -len(doc.key), doc.key, -row.table)
+    return (not pending, row.effective or date.min, doc.authority, on_topic(doc, row), -len(doc.key), doc.key, -row.table)
+
+
+def on_topic(doc, row) -> bool:
+    """The page is about the product (an auto table on the auto-loan page), not a copy embedded in a page about
+    something else (the same table on the checking page): among equally dated, equally trusted pages it wins."""
+    rx = dict(Q_FAMILIES).get(row.family)
+    return bool(rx and re.search(rx, re.sub(r"[-_/]", " ", f"{doc.key} {doc.title}".lower())))
 
 
 def _disagree(rows_a, rows_b) -> bool:
@@ -406,8 +418,8 @@ def compete(pairs, today: Optional[date] = None):
     for by_table in tables.values():
         rank = {t: table_rank(*by_table[t][0], today) for t in by_table}
         best = max(by_table, key=rank.get)
-        level = rank[best][:3]
-        tie = {t for t in by_table if t != best and rank[t][:3] == level
+        level = rank[best][:4]
+        tie = {t for t in by_table if t != best and rank[t][:4] == level
                and _disagree([r for _, r in by_table[best]], [r for _, r in by_table[t]])}
         for t, members in by_table.items():
             (winners if t == best or t in tie else losers).extend(members)
@@ -617,6 +629,12 @@ def answer_rate_question(view, question: str) -> Optional[RateAnswer]:
             return RateAnswer(text="I don't know a current rate for that: the current rate tables no longer list it. "
                                    "Please contact Dupaco or see https://www.dupaco.com/rates.", confident=False)
     main, extra = select(winners, q)
+    if main and all(r.effective and r.effective > today for _, r in main):
+        # the only table printed for it then had not taken effect: what applied on that day is unknown, and the
+        # announced number is not it
+        return RateAnswer(text="I don't know the rate in effect then: the only rate table the website showed for it "
+                               "had not taken effect yet. Please contact Dupaco or see https://www.dupaco.com/rates.",
+                          confident=False)
     if not main and not extra:
         if PRESENCE.search(question):
             # "Was a 17-month special listed on May 19?" asks whether it was there: no, and what was there instead

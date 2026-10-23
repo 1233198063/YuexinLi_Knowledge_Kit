@@ -289,8 +289,9 @@ def cover_rest(doc, ch, text: str, q: set, idf: dict) -> str:
     fee?': the chosen sentences answer one part; sentences of the same section (same heading, on the same page) that
     hold the parts still unanswered are added, at most two. Never another section: a neighbouring branch, product
     or speaker is not what was asked."""
+    floor = 0.25 * max(idf.values(), default=0.0)      # specific words only, whatever the size of the site
     asked = {t for t in q - SHAPE_WORDS - KEY_IGNORE - COVER_STOP
-             if idf.get(t, 0.0) >= 2.0 and not re.fullmatch(r"[\d,.]+", t)}
+             if idf.get(t, 0.0) >= floor and not re.fullmatch(r"[\d,.]+", t)}
     missing = asked - set(tokens(text))
     if len(asked) < 3 or not missing:
         return ""
@@ -341,6 +342,10 @@ def compose(ch, i: int) -> str:
 
 FULL_DATE = rf"\b{MONTH}\s+\d{{1,2}},?\s+\d{{4}}\b"
 CLOSING = re.compile(rf"\b(clos\w*|discontinu\w*|end\w*|expir\w*)\b[^.]{{0,60}}?({FULL_DATE})", re.I)
+
+
+UNANNOUNCED = re.compile(r"\b(?:will be announced|to be announced|not (?:yet )?(?:been )?announced|have not announced|"
+                         r"has not announced|haven't announced|hasn't announced|dates? (?:are |is )?(?:tbd|tba))\b", re.I)
 
 
 def status_prefix(question: str, text: str, today: date) -> str:
@@ -563,7 +568,8 @@ def context(c) -> frozenset:
 
 
 # Members' words -> the site's words (only the question is rewritten).
-SYNONYMS = [(re.compile(r"\bbecome (?:a |an )?(?:dupaco )?member\b", re.I), "join as a member"),
+SYNONYMS = [(re.compile(r"\b(?:expiry|expiration)\b", re.I), "expires"),       # "its expiry clock" ~ "expires eight months ..."
+            (re.compile(r"\bbecome (?:a |an )?(?:dupaco )?member\b", re.I), "join as a member"),
             (re.compile(r"\b(?:apply for|sign up for|get) (?:a )?membership\b", re.I), "join as a member"),
             (re.compile(r"\bwho (?:can|may|is allowed to) join\b", re.I), "who is eligible to join"),
             (re.compile(r"\bmembership (?:requirements?|eligibility|criteria|rules)(?: rules)?\b", re.I), "eligible to join as a member"),
@@ -584,7 +590,8 @@ KEY_IGNORE = frozenset(tokens("shown show shows showed displayed listed list lis
                               "newest recent most supplied available matching match exact exactly give only highest "
                               "lowest maximum max least top bottom floor ceiling cap capped band bands range ranges "
                               "reach go run compare compared comparison versus vs difference january february march "
-                              "april may june july august september october november december"))
+                              "april may june july august september october november december explain describe "
+                              "clock clocks timing rule rules detail details summarize tell"))
 # words that only say WHICH kind of answer is wanted: "what's the LINK to the branch locator?" is about the locator
 KIND_WORDS = {"a link": frozenset(tokens("link links url urls website web page site online address")),
               "that number": frozenset(tokens("number count total"))}
@@ -776,6 +783,12 @@ def search(view, question: str, idf: dict, today: date, defs: Optional[dict] = N
             text = text.split("Branch hours are")[0].rstrip() + " " + block
     if pattern is DATE and not DATE.search(text) and doc.published:
         text += f" (Dupaco news release published {doc.published:%B} {doc.published.day}, {doc.published.year}.)"
+    if (is_status(question) or re.search(r"\b(?:currently|now|still)\s+(?:open|accepting|available)\b|"
+                                         r"\bopen (?:now|currently|today)\b", question, re.I)) \
+            and UNANNOUNCED.search(text):
+        # "Are applications open now?" + "the next cycle will be announced in 2036": the site doesn't say it is
+        # open, and an old cycle's opening date is not the current one
+        return dont_know("the website says the next dates have not been announced yet.")
     text = status_prefix(question, text, today) + text + earlier_years(ch.sents[i], doc, cands)
     also = corroborate(view, doc, ch.sents[i][0])
     also += linked_pages(view, text, (doc,) + also)

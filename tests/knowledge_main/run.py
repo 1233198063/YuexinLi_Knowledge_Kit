@@ -24,6 +24,9 @@ SUITES = [   # (family, folder, test module, how the file finds the runtime unde
     ("program status: qualified", "program_status", "test_qualified_programs", "env"),
     ("program status: notices", "program_status", "test_program_notice_variants", "env"),
     ("source planner", "source_planner", "test_iteration2b_frozen", "argv"),
+    ("Parent45e1 custody: mechanisms", "parent_custody", "limited_mechanism_controls", "env"),
+    ("Parent45e1 custody: source order", "parent_custody", "source_order_controls", "env"),
+    ("Parent45e1 custody: temporal", "parent_custody", "temporal_controls", "env"),
 ]
 # Not run, with the reason: they test that runtime's own wrapper layers, not behaviour through the contract.
 NOT_APPLICABLE = {

@@ -139,7 +139,11 @@ PCT = re.compile(r"(\d+(?:\.\d+)?)\s*%")
 BARE_RATE = re.compile(r"^\d{1,2}\.\d{1,3}$")          # older tables sometimes print "7.29" without the % sign
 TERM = re.compile(r"\b(\d{1,3})\s*-?\s*(months?|mo\b|years?|yrs?\b)", re.I)
 AMOUNT = r"\$\s?(\d[\d,]*(?:\.\d+)?)"
-EFFECTIVE = re.compile(r"effective(?:\s+as\s+of)?\s+(\d{1,2})/(\d{1,2})/(\d{2,4})", re.I)
+# "Rates are effective as of 09/01/2026", "Effective January 8, 2036", "effective on 2036-02-08"
+EFFECTIVE = re.compile(r"effective(?:\s+as\s+of|\s+on|\s*:)?\s+(?:(?P<mo>\d{1,2})/(?P<d>\d{1,2})/(?P<y>\d{2,4})"
+                       r"|(?P<mname>jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(?P<d2>\d{1,2})(?:st|nd|rd|th)?,?"
+                       r"\s+(?P<y2>\d{4})|(?P<y3>\d{4})-(?P<mo3>\d{2})-(?P<d3>\d{2}))", re.I)
+MONTH_NUMBER = {m: i for i, m in enumerate("jan feb mar apr may jun jul aug sep oct nov dec".split(), 1)}
 FOOTNOTE = re.compile(r"^\W*\d(?!st\b|nd\b|rd\b|th\b)[A-Za-z]")   # "1Rates are effective..." = footnote 1 ("1st Rate" is not)
 SEPARATOR = re.compile(r"^\|\s*:?-{3}")
 RATE_COLUMN = re.compile(r"rate|apy|apr|yield|dividend", re.I)
@@ -247,7 +251,12 @@ def format_pcts(cell: str) -> str:
 
 
 def parse_date(m) -> Optional[date]:
-    mo, d, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
+    if m.group("mo"):
+        mo, d, y = int(m.group("mo")), int(m.group("d")), int(m.group("y"))
+    elif m.group("mname"):
+        mo, d, y = MONTH_NUMBER[m.group("mname").lower()], int(m.group("d2")), int(m.group("y2"))
+    else:
+        mo, d, y = int(m.group("mo3")), int(m.group("d3")), int(m.group("y3"))
     y = y + 2000 if y < 100 else y
     try:
         return date(y, mo, d)
@@ -347,9 +356,22 @@ ENDED = re.compile(r"\b(ended|expired|no longer available|discontinued)\b", re.I
 PROSE_METRIC = {"apy": "apy", "apr": "apr", "dividend rate": "dividend", "interest rate": "rate", "rate": "rate"}
 
 
+def effective_near(lines: list[str], i: int) -> Optional[date]:
+    """The effective date printed closest to a one-line rate ("Effective January 8, 2036" above "... APY: 4.91%"),
+    within its own section: a heading on the way ends the search."""
+    for k in sorted(range(max(0, i - 8), min(len(lines), i + 9)), key=lambda k: (abs(k - i), k)):
+        between = lines[min(i, k) + 1:max(i, k) + (1 if k > i else 0)]
+        if any(HEADING.match(x) for x in between):
+            continue
+        m = EFFECTIVE.search(lines[k])
+        if m and k != i:
+            return parse_date(m)
+    return None
+
+
 def parse_prose_rates(lines: list[str], table_index: int, url_path: str) -> list[RateRow]:
     rows = []
-    for line in lines:
+    for i, line in enumerate(lines):
         if line.startswith("|") or len(line) > 120:
             continue
         m = PROSE_RATE.match(line.strip())
@@ -363,7 +385,7 @@ def parse_prose_rates(lines: list[str], table_index: int, url_path: str) -> list
             family=family, name=product_name(family, label), quals=qualifiers(f"{label} {url_path}"), label=label,
             display=label, caption="", term_months=term_months(label), tier="", tier_lo=None, tier_hi=None,
             years=parse_model_years(label), rates={PROSE_METRIC[m.group("metric").lower()]: m.group("pct") + "%"},
-            effective=None, table=table_index, raw=line.strip(),
+            effective=effective_near(lines, i), table=table_index, raw=line.strip(),
         ))
     return rows
 

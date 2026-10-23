@@ -270,16 +270,24 @@ def check_mutations():
     a = kb.answer("What does a 12-month certificate pay?")
     cases.append(("...and is current once in effect", "3.75%" in a.text and "3.50%" not in a.text, a.text))
 
-    # M2 equally trusted pages, same date, different numbers: both shown, no invented winner
+    # M2 equally trusted pages (both about certificates), same date, different numbers: both shown, no invented winner
     kb = build()
     kb.ingest(Snapshot("01", "2026-03-10", [
         page(f"{U}/personal/certificates", "Certificates", "# A\n\n" + table([(6, "3.00")], "03/01/2026")),
-        page(f"{U}/personal/savings-account", "Savings", "# B\n\n" + table([(6, "3.25")], "03/01/2026"))]))
+        page(f"{U}/personal/certificate-specials", "Certificate specials", "# B\n\n" + table([(6, "3.25")], "03/01/2026"))]))
     a = kb.answer("What is the 6-month certificate APY?")
     six = [c for c in kb.conflicts() if "6-month" in c.topic]
     cases.append(("exact tie: both values shown", "3.00%" in a.text and "3.25%" in a.text, a.text))
     cases.append(("exact tie: conflict without a winner", bool(six) and six[0].resolution is None,
                   six[0].resolution if six else "no conflict"))
+    # M2b the same date and trust, but one page is about the product and the other embeds a copy (a certificate
+    # table on the savings page): the product's own page wins
+    kb = build()
+    kb.ingest(Snapshot("01", "2026-03-10", [
+        page(f"{U}/personal/certificates", "Certificates", "# A\n\n" + table([(6, "3.00")], "03/01/2026")),
+        page(f"{U}/personal/savings-account", "Savings", "# B\n\n" + table([(6, "3.25")], "03/01/2026"))]))
+    a = kb.answer("What is the 6-month certificate APY?")
+    cases.append(("product page beats an embedded copy", "3.00%" in a.text and "3.25%" not in a.text, a.text))
 
     # M3 a page missing from one download is carried forward and cited from the download that had it
     kb = build()

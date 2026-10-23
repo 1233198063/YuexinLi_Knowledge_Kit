@@ -36,7 +36,8 @@ DATE_IN_QUESTION = re.compile(
     r"\b(?:as of|in|on|during|by|back in|around|at the end of|captured|crawled|downloaded|the|for an?)\s+(?:the\s+)?"
     r"(early|mid|late)?[-\s]?"
     r"(?:(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(?:(\d{1,2})(?:st|nd|rd|th)?,?\s+)?(20\d\d)\b"
-    r"|(\d{1,2})/(\d{1,2})/(20\d\d)\b|(20\d\d)-(\d\d)-(\d\d)\b)", re.I)
+    r"|(\d{1,2})/(\d{1,2})/(20\d\d)\b|(20\d\d)-(\d\d)-(\d\d)\b"
+    r"|(\d{1,2})\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?,?\s+(20\d\d)\b)", re.I)   # 10 March 2035
 PART_OF_MONTH = {"early": 5, "mid": 15, "late": 25}
 
 
@@ -47,6 +48,30 @@ CHANGE_QUESTION = re.compile(r"\b(chang\w*|previous(ly)?|prior|used to|went (up|
                              r"[a-z]+\.?\s+\d{1,2}(?:st|nd|rd|th)?,?\s+(?:20\d\d\s+)?)?"
                              r"(?:crawl|snapshot|download|capture|copy|recrawl))( that| it)?|"
                              r"increas\w*|decreas\w*|rais\w*|lower(ed)?|drop\w*|old rate|last time)\b", re.I)
+
+
+# the asker's own account state, which only the bank's systems know
+PRIVATE_STATE = re.compile(r"\b(?:has|have|is|was|were|are|did)\s+my\b[^?]{0,80}?\b(?:been\s+)?(?:verified|approved|"
+                           r"completed|processed|received|confirmed|posted|cleared|accepted|denied|declined)\b"
+                           r"|\bwhat(?:'s| is| was)\s+my\s+(?:current\s+)?(?:account\s+)?(?:balance|account number|member "
+                           r"number|payment status|application status|loan status)\b", re.I)
+# "a transfer posts on day 38 - does it qualify?" against "during the first 37 days": a yes or no first
+WINDOW_ASKED = re.compile(r"\b(?:on|by|at)\s+day\s+(\d+)\b|\b(\d+)\s+days\s+(?:after|from|following|since)\b", re.I)
+WINDOW_GIVEN = re.compile(r"\b(?:first|within(?:\s+the\s+first)?)\s+(\d+|" + "|".join(
+    ["ten", "fifteen", "twenty", "thirty", "forty-five", "sixty", "ninety"]) + r")\s+days\b", re.I)
+WINDOW_WORDS = {"ten": 10, "fifteen": 15, "twenty": 20, "thirty": 30, "forty-five": 45, "sixty": 60, "ninety": 90}
+YES_NO = re.compile(r"\b(?:can|could|does|do|is|will|would)\b[^?]*\b(?:qualif\w*|eligible|count|apply|valid)\b", re.I)
+
+
+def with_window_verdict(a: Answer, question: str) -> Answer:
+    q, given = WINDOW_ASKED.search(question), WINDOW_GIVEN.search(a.text)
+    if not (a.confident and q and given and YES_NO.search(question)):
+        return a
+    day = int(q.group(1) or q.group(2))
+    limit = int(given.group(1)) if given.group(1).isdigit() else WINDOW_WORDS[given.group(1).lower()]
+    verdict = (f"No. Day {day} is after the first {limit} days." if day > limit else
+               f"Yes. Day {day} is within the first {limit} days.")
+    return Answer(text=f"{verdict} {a.text}", sources=a.sources, confident=a.confident, conflict_note=a.conflict_note)
 
 
 # a rate question that also asks the offer's timing or conditions, which only its text gives
@@ -74,17 +99,25 @@ def date_in_question(question: str) -> Optional[str]:
             d = int(m.group(3)) if m.group(3) else PART_OF_MONTH.get(part) or calendar.monthrange(y, mo)[1]
         elif m.group(5):
             mo, d, y = int(m.group(5)), int(m.group(6)), int(m.group(7))
-        else:
+        elif m.group(8):
             y, mo, d = int(m.group(8)), int(m.group(9)), int(m.group(10))
+        else:
+            d, mo, y = int(m.group(11)), MONTHS[m.group(12).lower()[:3]], int(m.group(13))
         return date(y, mo, d).isoformat()
     except ValueError:
-        return None
+        return INVALID
+
+
+INVALID = "invalid"   # a date that doesn't exist ("February 30, 2035"): no snapshot can be chosen for it
 
 
 # Every day a question names, with or without its year: "at the August 27 and September 28 crawls", "the
 # August-27 and September-28 snapshot APRs", "between 2026-05-12 and 2026-06-09"
 NAMED_DAY = re.compile(r"\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?[\s-]+(\d{1,2})(?:st|nd|rd|th)?\b"
-                       r"(?:,?\s+(20\d\d)\b)?|\b(20\d\d)-(\d\d)-(\d\d)\b|\b(\d{1,2})/(\d{1,2})/(20\d\d)\b", re.I)
+                       r"(?:,?\s+(20\d\d)\b)?|\b(20\d\d)-(\d\d)-(\d\d)\b|\b(\d{1,2})/(\d{1,2})/(20\d\d)\b"
+                       r"|\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(20\d\d)\b", re.I)   # May 2035
+# a question about the path between two days, not only its two ends
+TRAJECTORY = re.compile(r"\b(chang\w*|mov(?:e|ed|es)|went|rose|fell|shift\w*|trend\w*|evolv\w*|over time|history)\b", re.I)
 # two days asked side by side: "August 27 AND September 28", "from May 12 TO June 9", "compare ... both dates"
 BETWEEN_DAYS = re.compile(r"^[\s,]*(?:[a-z'-]+\s+){0,3}?(?:and|to|through|versus|vs\.?|or|then)\b|^\s*[-–]\s*$", re.I)
 EACH_DAY = re.compile(r"\b(compar\w*|versus|vs\.?|between|both|each|chang\w*|differ\w*|mov(?:e|ed|es)|went|rose|fell|"
@@ -100,8 +133,11 @@ def named_days(question: str, year: int) -> list:
                 d = date(int(m.group(3) or year), MONTHS[m.group(1).lower()[:3]], int(m.group(2)))
             elif m.group(4):
                 d = date(int(m.group(4)), int(m.group(5)), int(m.group(6)))
-            else:
+            elif m.group(7):
                 d = date(int(m.group(9)), int(m.group(7)), int(m.group(8)))
+            else:                       # a month: as the site stood at its end
+                y, mo = int(m.group(11)), MONTHS[m.group(10).lower()[:3]]
+                d = date(y, mo, calendar.monthrange(y, mo)[1])
         except ValueError:
             continue
         out.append((d, m))
@@ -121,7 +157,8 @@ def asked_days(question: str, year: int) -> list:
 
 def normalize_as_of(as_of) -> Optional[str]:
     """as_of as an ISO date: '2026-05-31', a date/datetime, '2026-05-31T00:00:00Z', '2026-05' (end of month),
-    'May 2026', '05/31/2026'. Anything unreadable means no date (answer from the latest download), never a crash."""
+    'May 2026', '05/31/2026'. Anything unreadable ('2035-02-31', 'not-a-date') is INVALID: the answer declines
+    rather than guess a snapshot. Never a crash."""
     if not as_of:
         return None
     s = str(as_of).strip()
@@ -133,7 +170,7 @@ def normalize_as_of(as_of) -> Optional[str]:
     if m and 1 <= int(m.group(2)) <= 12:
         y, mo = int(m.group(1)), int(m.group(2))
         return date(y, mo, calendar.monthrange(y, mo)[1]).isoformat()
-    return date_in_question("as of " + s)
+    return date_in_question("as of " + s) or INVALID
 
 
 # A second question joined to the first: "What does a Holiday Club account earn, and WHEN does the money get paid
@@ -152,13 +189,19 @@ def split_question(question: str) -> list:
     if len(parts) < 2:
         return [question]
     first = parts[0]
-    names = re.findall(r"(?<!^)(?<![.?!]\s)\b[A-Z][\w'’$-]+(?:\s+[A-Z][\w'’$-]+)*", first)
+    names = [n for n in re.findall(r"(?<!^)(?<![.?!]\s)\b[A-Z][\w'’$-]+(?:\s+[A-Z][\w'’$-]+)*", first)
+             if n.lower()[:3] not in MONTHS]                      # "As of January 10": a date, not a name
     # its amounts and terms too: "I have exactly $100,000 for the 17-month special. Which tier applies, and what APY
-    # ...?" - the second clause asks about $100,000. Not years: a date is read from the whole question already
-    figures = re.findall(r"\$\s?\d[\d,]*(?:\.\d+)?k?|\b\d+[- ](?:month|year|yr)s?\b", first, re.I)
-    subject = " ".join(dict.fromkeys(" ".join(names + [m.group(0) for m in SUBJECT_NOUN.finditer(first)]
-                                              + figures).split()))
-    return [first + "?"] + [f"{p}? ({subject})" if subject else p + "?" for p in parts[1:]]
+    # ...?" - the second clause asks about $100,000 - unless it names its own ("...; and for $250,000 ...?").
+    # Not years: a date is read from the whole question already
+    figure = re.compile(r"\$\s?\d[\d,]*(?:\.\d+)?k?|\b\d+[- ](?:month|year|yr)s?\b", re.I)
+    nouns = [m.group(0) for m in SUBJECT_NOUN.finditer(first)]
+    out = [first + "?"]
+    for p in parts[1:]:
+        carried = names + nouns + ([] if figure.search(p) else figure.findall(first))
+        subject = " ".join(dict.fromkeys(" ".join(carried).split()))
+        out.append(f"{p}? ({subject})" if subject else p + "?")
+    return out
 
 
 def question_kind(question: str) -> str:
@@ -217,7 +260,12 @@ class KnowledgeBase:
     # ------------------------------------------------------------ answer
     def answer(self, question: str, as_of: Optional[str] = None) -> Answer:
         try:
-            return self._answer(question or "", as_of)
+            if PRIVATE_STATE.search(question or ""):
+                # "Has my identity been verified and my correction completed?": no public page can say
+                return Answer(text="I can't see your account: the public website doesn't show any member's account "
+                                   "status, balance or approval. Please log in to online banking or contact Dupaco.",
+                              confident=False)
+            return with_window_verdict(self._answer(question or "", as_of), question or "")
         except Exception:      # an unforeseen input must not crash the member's chat: decline instead
             return Answer(text="I don't know. Please contact Dupaco or visit https://www.dupaco.com/contact.",
                           confident=False)   # no numbers in a refusal
@@ -225,16 +273,29 @@ class KnowledgeBase:
     def _answer(self, question: str, as_of: Optional[str] = None) -> Answer:
         cutoff = normalize_as_of(as_of)
         as_of = cutoff or date_in_question(question)   # "... as of May 2026?" written in the text
+        if as_of == INVALID:
+            return Answer(text="I don't know which date you mean: that date doesn't exist, so I can't tell which copy "
+                               "of the website to use. Please give a valid date.", confident=False)
         year = int((cutoff or (self.snaps[-1].taken_on if self.snaps else date.today().isoformat()))[:4])
         # a day before the first download has no website to show ("the footnote's 03/03/2026" is a table date)
         first = self.snaps[0].taken_on if self.snaps else ""
         days = [d for d in asked_days(question, year) if (not cutoff or d.isoformat() <= cutoff) and d.isoformat() >= first]
         if len(days) >= 2:
+            if TRAJECTORY.search(question):
+                # "how did it change from January to May?": every download in between too, not just the ends
+                lo, hi = days[0].isoformat(), days[-1].isoformat()
+                days = sorted(set(days) | {date.fromisoformat(s.taken_on) for s in self.snaps if lo < s.taken_on <= hi})
             return self.by_day(question, days)
-        return self._answer_at(question, as_of)
+        return self._answer_at(question, as_of, own_dates=not cutoff)
 
-    def _answer_at(self, question: str, as_of: Optional[str], history: bool = True) -> Answer:
+    def _answer_at(self, question: str, as_of: Optional[str], history: bool = True, own_dates: bool = False) -> Answer:
         clauses = split_question(question)
+        if own_dates and len(clauses) > 1:
+            dated = [date_in_question(c) for c in clauses]
+            if len({d for d in dated if d}) > 1 and INVALID not in dated:
+                # "As of January 10, ... $220,000 ...; and as of May 10, ... $250,000 ...?" with no as_of passed:
+                # each part as the site stood on its own date
+                return self.combine([self._answer_one(c, d or as_of, history) for c, d in zip(clauses, dated)])
         if len(clauses) > 1 and len({question_kind(c) for c in clauses}) > 1:
             # two questions asking for different kinds of answer (a rate and a date, a fee and a limit): each is
             # answered on its own, so neither part is dropped
@@ -263,8 +324,8 @@ class KnowledgeBase:
         sources, seen = [], set()
         for a in parts:
             for s in a.sources:
-                if s.url not in seen:
-                    seen.add(s.url)
+                if (s.url, s.snapshot_id) not in seen:      # one page seen in two downloads is two observations
+                    seen.add((s.url, s.snapshot_id))
                     sources.append(s)
         notes = [a.conflict_note for a in parts if a.conflict_note]
         return Answer(text="\n".join(a.text for a in parts), sources=sources,
