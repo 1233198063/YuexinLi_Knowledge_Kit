@@ -96,6 +96,14 @@ Q_METRICS = [("apy", r"\bapys?\b|annual percentage yield|\byields?\b"),
              ("apr", r"\baprs?\b|annual percentage rate"),
              ("dividend", r"\bdividend")]
 METRIC_KEYS = {"apy": ("apy", "promo_apy"), "apr": ("apr",), "dividend": ("dividend", "promo_dividend")}
+# "rate AND APR", "rate/apr": the nominal rate is asked too (not inside "annual percentage rate", "rate sheet" ...)
+PLAIN_RATE = re.compile(r"\brates?\b")
+NOT_PLAIN_RATE = re.compile(r"annual percentage rates?|dividend rates?|rates? (?:sheet|lock|relief|card)s?|"
+                            r"\b(?:1st|first) rate\b|\brates?\s+(?:effective|as of)\b", re.I)
+
+
+def plain_rate_asked(ql: str) -> bool:
+    return bool(PLAIN_RATE.search(NOT_PLAIN_RATE.sub(" ", ql)))
 
 # The kind of loan a question names: "construction loan", "VA mortgage", "land mortgage". A kind that no
 # vocabulary word above explains must be printed in the family's rate rows, or the rows don't answer it.
@@ -130,6 +138,7 @@ class RateQuery:
     check_pct: Optional[float]      # "Do any tiers pay 0.35%?" -> 0.35
     metrics: Optional[tuple] = None # rate keys the question names ("APY" -> apy, promo_apy); None = any
     kinds: list = field(default_factory=list)   # loan kinds no vocabulary explains: ["construction loan"]
+    ruled_out: set = field(default_factory=set)  # qualifiers the question excludes ("non-jumbo" -> jumbo)
     terms: list = field(default_factory=list)   # every term named: "6-month or 24-month?" -> [6, 24]
 
     @property
@@ -200,6 +209,9 @@ def parse_question(question: str) -> Optional[RateQuery]:
         return None
     names = {n for n, rx in Q_NAMES.get(family, []) if re.search(rx, ql)}
     quals = {q for q, rx in Q_QUALS if re.search(rx, NEGATED.sub(" ", ql))}
+    ruled_out = {q for q, rx in Q_QUALS for m in NEGATED.finditer(ql) if re.search(rx, m.group(0))}
+    if re.search(r"\b(standard|regular|ordinary|normal|non-?jumbo)\b", ql):
+        ruled_out |= SECONDARY - quals         # "the standard 10-month special": not the jumbo or intro rows
     terms = []
     for m in Q_TERM.finditer(ql):
         n = int(m.group(1)) if m.group(1).isdigit() else WORDNUM[m.group(1)]
@@ -222,8 +234,10 @@ def parse_question(question: str) -> Optional[RateQuery]:
         extreme = "max" if family in DEPOSITS else "min"      # best savings rate = highest, best loan rate = lowest
     m = Q_PCT.search(ql)
     named = [k for metric, rx in Q_METRICS if re.search(rx, ql) for k in METRIC_KEYS[metric]]
+    if named and plain_rate_asked(ql):
+        named += ["rate", "dividend"]       # "rate and APR": the nominal rate (or dividend rate) too
     return RateQuery(family, names, quals, term, amounts, year, extreme, float(m.group(1)) if m else None,
-                     tuple(named) or None, unknown_kinds(ql, family), terms)
+                     metrics=tuple(named) or None, kinds=unknown_kinds(ql, family), terms=terms, ruled_out=ruled_out)
 
 
 # ---------------------------------------------------------------- choosing the current table
@@ -314,7 +328,7 @@ def select(pairs, q: RateQuery):
     tagged = []
     for doc, r in pairs:
         unasked = r.quals - q.quals
-        if "refinance" in unasked or ("business" in unasked and not q.generic):
+        if "refinance" in unasked or ("business" in unasked and not q.generic) or r.quals & q.ruled_out:
             continue
         tagged.append((doc, r, bool(unasked & (SECONDARY | {"business"}))))
 
@@ -363,12 +377,41 @@ def fmt_minimum(r) -> str:
     return f"{MIN_LABEL[kind]} {r.minimums[kind]}"
 
 
-def fmt_row(r, title: str = "") -> str:
-    vals = [f"{r.rates[k]} {label}" for k, label in METRICS if k in r.rates]
+def fmt_row(r, title: str = "", metrics=None) -> str:
+    """metrics: the rate keys the question names ("APY" -> apy, promo_apy). Only those are shown when the row has
+    them: the dividend rate is a different number from the APY, and printing it to an APY question is a wrong value."""
+    keys = [k for k, _ in METRICS if k in r.rates]
+    if metrics and any(k in metrics for k in keys):
+        keys = [k for k in keys if k in metrics]
+    vals = [f"{r.rates[k]} {LABEL[k]}" for k in keys]
     name = r.display[len(title) + 3:] if title and r.display.startswith(f"{title} – ") else r.display
     # a balance tier already says how much is needed; otherwise the minimum is part of the fact ($100,000 jumbo)
     cond = f" ({fmt_minimum(r)})" if r.tier_lo is None and r.min_amount else ""
     return f"{name}: {' / '.join(vals)}{cond}"
+
+
+METRIC_WORDS = {"apy": r"APY|annual percentage yield", "apr": r"APR|annual percentage rate",
+                "dividend": r"dividend rate"}
+
+
+def asked_metrics(question: str) -> set:
+    ql = question.lower()
+    return {m for m, rx in Q_METRICS if re.search(rx, ql)} | ({"rate"} if plain_rate_asked(ql) else set())
+
+
+def keep_asked_metrics(text: str, question: str) -> str:
+    """'APY 4.60%; dividend rate 4.55%' answering 'What APY ...?' -> 'APY 4.60%': a dividend rate is a different
+    number from the APY, and repeating it to an APY question gives a wrong value. Only when one metric is asked."""
+    asked = asked_metrics(question)
+    if len(asked) != 1:
+        return text
+    for m, words in METRIC_WORDS.items():
+        if m in asked:
+            continue
+        pct = r"\d+(?:\.\d+)?\s*%"
+        text = re.sub(rf"[;,/]?\s*\b(?:{words})\s*(?:of|is|:)?\s*{pct}|[;,/]?\s*{pct}\s*(?:{words})\b", "", text, flags=re.I)
+    text = re.sub(r"(:\s*)[/;,]\s*", r"\1", text)          # "Special: / 4.10% APY" -> "Special: 4.10% APY"
+    return re.sub(r"\s+([.;,])", r"\1", text)              # "4.06% dividend rate ." -> "4.06% dividend rate."
 
 
 def fmt_money(a: float) -> str:
@@ -480,7 +523,7 @@ def answer_rate_question(view, question: str) -> Optional[RateAnswer]:
         if "business" in first.quals and "business" not in title.lower():
             title = "Business " + title
         prefix = "" if id(first) in shown_main else "Also: "
-        body = "; ".join(fmt_row(r, first.caption) for _, r in members)
+        body = "; ".join(fmt_row(r, first.caption, q.metrics) for _, r in members)
         when = (f"takes effect {fmt_date(first.effective)}" if first.effective and first.effective > today
                 else f"effective {fmt_date(first.effective)}" if first.effective else "no effective date printed")
         if not first.caption and len(members) == 1:

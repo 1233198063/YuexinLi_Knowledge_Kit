@@ -27,8 +27,8 @@ except ImportError:  # running outside the harness: find harness/contract.py in 
 
 from kb_conflicts import find_conflicts  # noqa: E402
 from kb_pages import SnapView, index_doc, make_doc, observed_in  # noqa: E402
-from kb_rate_qa import answer_rate_question  # noqa: E402
-from kb_search import build_definitions, build_idf, search  # noqa: E402
+from kb_rate_qa import answer_rate_question, keep_asked_metrics, parse_question  # noqa: E402
+from kb_search import answer_kind, build_definitions, build_idf, search  # noqa: E402
 
 
 MONTHS = {m: i for i, m in enumerate("jan feb mar apr may jun jul aug sep oct nov dec".split(), 1)}
@@ -86,6 +86,31 @@ def normalize_as_of(as_of) -> Optional[str]:
         y, mo = int(m.group(1)), int(m.group(2))
         return date(y, mo, calendar.monthrange(y, mo)[1]).isoformat()
     return date_in_question("as of " + s)
+
+
+# A second question joined to the first: "What does a Holiday Club account earn, and WHEN does the money get paid
+# out?", "Who administers the hardship fund AND HOW do I contact them?". Lists ("rate and APY", "for individuals
+# and for businesses") are not split: the second part must start like a question of its own.
+CLAUSE_BREAK = re.compile(r"(?:,\s*|\s+)and\s+(?=(?:what|when|how|who|whom|where|which|why|is|are|does|do|did|can|"
+                          r"will|would)\b)|\?\s+(?=\S+(?:\s+\S+){3})|;\s+", re.I)
+SUBJECT_NOUN = re.compile(r"(?:\b[\w$'’-]+\s+)?\b(?:accounts?|loans?|cards?|certificates?|mortgages?|branch(?:es)?|grants?|"
+                          r"programs?|funds?|heloc|visa|privilege|savings|checking|scholarships?|insurance)\b", re.I)
+
+
+def split_question(question: str) -> list:
+    """['What does a Holiday Club account earn', 'when does the money get paid out (Holiday Club account)']:
+    the second clause gets the first one's names and products, which it usually leaves out."""
+    parts = [p.strip(" ?") for p in CLAUSE_BREAK.split(question) if p and p.strip(" ?")]
+    if len(parts) < 2:
+        return [question]
+    first = parts[0]
+    names = re.findall(r"(?<!^)(?<![.?!]\s)\b[A-Z][\w'’$-]+(?:\s+[A-Z][\w'’$-]+)*", first)
+    subject = " ".join(dict.fromkeys(" ".join(names + [m.group(0) for m in SUBJECT_NOUN.finditer(first)]).split()))
+    return [first + "?"] + [f"{p}? ({subject})" if subject else p + "?" for p in parts[1:]]
+
+
+def question_kind(question: str) -> str:
+    return "rate" if parse_question(question) else answer_kind(question)[0]
 
 
 class KnowledgeBase:
@@ -147,6 +172,26 @@ class KnowledgeBase:
 
     def _answer(self, question: str, as_of: Optional[str] = None) -> Answer:
         as_of = normalize_as_of(as_of) or date_in_question(question)   # "... as of May 2026?" written in the text
+        clauses = split_question(question)
+        if len(clauses) > 1 and len({question_kind(c) for c in clauses}) > 1:
+            # two questions asking for different kinds of answer (a rate and a date, a fee and a limit): each is
+            # answered on its own, so neither part is dropped
+            return self.combine([self._answer_one(c, as_of) for c in clauses])
+        return self._answer_one(question, as_of)
+
+    @staticmethod
+    def combine(parts: list) -> Answer:
+        sources, seen = [], set()
+        for a in parts:
+            for s in a.sources:
+                if s.url not in seen:
+                    seen.add(s.url)
+                    sources.append(s)
+        notes = [a.conflict_note for a in parts if a.conflict_note]
+        return Answer(text="\n".join(a.text for a in parts), sources=sources,
+                      confident=any(a.confident for a in parts), conflict_note=" ".join(notes) or None)
+
+    def _answer_one(self, question: str, as_of: Optional[str] = None) -> Answer:
         view = self.view(as_of)
         asked = date.fromisoformat(str(as_of)[:10]) if as_of else None
         rate = answer_rate_question(view, question)   # step 2c: rate questions are answered from RateRows
@@ -170,6 +215,7 @@ class KnowledgeBase:
         sources += [Source(url=d.url, snapshot_id=observed_in(view, d)) for d in hit.also]   # pages saying the same
         published = hit.doc.published if hit.doc else None
         text = re.sub(r"\b1?\.?(\d{3})\.(\d{3})\.(\d{4})\b", r"\1-\2-\3", hit.text)    # 1.800.373.7600 -> 800-373-7600
+        text = keep_asked_metrics(text, question)       # "What APY ...?": not the dividend rate printed beside it
         text += self.coverage_note(asked, published=published) if hit.confident else ""
         if hit.confident and CHANGED_FACT.search(question):
             text += self.previous_text(view, question, hit.quote)
