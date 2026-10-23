@@ -33,9 +33,10 @@ from kb_search import build_definitions, build_idf, search  # noqa: E402
 
 MONTHS = {m: i for i, m in enumerate("jan feb mar apr may jun jul aug sep oct nov dec".split(), 1)}
 DATE_IN_QUESTION = re.compile(
-    r"\b(?:as of|in|on|during|by|back in|around|at the end of)\s+"
+    r"\b(?:as of|in|on|during|by|back in|around|at the end of)\s+(?:the\s+)?(early|mid|late)?[-\s]?"
     r"(?:(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(?:(\d{1,2})(?:st|nd|rd|th)?,?\s+)?(20\d\d)\b"
     r"|(\d{1,2})/(\d{1,2})/(20\d\d)\b|(20\d\d)-(\d\d)-(\d\d)\b)", re.I)
+PART_OF_MONTH = {"early": 5, "mid": 15, "late": 25}
 
 
 # "Has the 10-month jumbo rate changed?", "What was the previous 12-month certificate rate?"
@@ -51,18 +52,20 @@ KEY_VALUE = re.compile(r"\$\s?\d[\d,]*(?:\.\d+)?|\b\d+(?:\.\d+)?%|\b\d[\d,]{2,}\
 
 def date_in_question(question: str) -> Optional[str]:
     """'What was the 12-month certificate APY in May 2026?' -> '2026-05-31' (a month means its last day,
-    as the site stood by then); 'as of May 12, 2026' -> '2026-05-12'. Used only when no as_of is passed."""
+    as the site stood by then); 'as of May 12, 2026' -> '2026-05-12'; 'in mid-May 2026' -> '2026-05-15';
+    'on the June 9, 2026 rate sheet' -> '2026-06-09'. Used only when no as_of is passed."""
     m = DATE_IN_QUESTION.search(question)
     if not m:
         return None
+    part = (m.group(1) or "").lower()
     try:
-        if m.group(1):
-            y, mo = int(m.group(3)), MONTHS[m.group(1).lower()[:3]]
-            d = int(m.group(2)) if m.group(2) else calendar.monthrange(y, mo)[1]
-        elif m.group(4):
-            mo, d, y = int(m.group(4)), int(m.group(5)), int(m.group(6))
+        if m.group(2):
+            y, mo = int(m.group(4)), MONTHS[m.group(2).lower()[:3]]
+            d = int(m.group(3)) if m.group(3) else PART_OF_MONTH.get(part) or calendar.monthrange(y, mo)[1]
+        elif m.group(5):
+            mo, d, y = int(m.group(5)), int(m.group(6)), int(m.group(7))
         else:
-            y, mo, d = int(m.group(7)), int(m.group(8)), int(m.group(9))
+            y, mo, d = int(m.group(8)), int(m.group(9)), int(m.group(10))
         return date(y, mo, d).isoformat()
     except ValueError:
         return None
@@ -166,7 +169,8 @@ class KnowledgeBase:
         sources = [Source(url=hit.doc.url, snapshot_id=observed_in(view, hit.doc), quote=hit.quote)] if hit.doc else []
         sources += [Source(url=d.url, snapshot_id=observed_in(view, d)) for d in hit.also]   # pages saying the same
         published = hit.doc.published if hit.doc else None
-        text = hit.text + (self.coverage_note(asked, published=published) if hit.confident else "")
+        text = re.sub(r"\b1?\.?(\d{3})\.(\d{3})\.(\d{4})\b", r"\1-\2-\3", hit.text)    # 1.800.373.7600 -> 800-373-7600
+        text += self.coverage_note(asked, published=published) if hit.confident else ""
         if hit.confident and CHANGED_FACT.search(question):
             text += self.previous_text(view, question, hit.quote)
         return Answer(text=text, sources=sources, confident=hit.confident)

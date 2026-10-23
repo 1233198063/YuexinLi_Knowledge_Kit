@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date
 from typing import Optional
 
@@ -32,8 +32,21 @@ from kb_pages import observed_in
 RATE_INTENT = re.compile(r"\b(rates?|apys?|aprs?|yields?|dividends?|interest|percent(age)?)\b|%", re.I)
 EARN_INTENT = re.compile(r"\b(earn|earns|pay|pays|paying)\b", re.I)   # "what does a 12-month certificate pay?"
 CHARGE_INTENT = re.compile(r"\b(charge|charges|charging)\b", re.I)    # "what are you charging for home loans?"
-# "the purchase APR, not the intro rate": a qualifier named only to rule it out doesn't count
-NEGATED = re.compile(r"\b(?:not|excluding|other than|besides|rather than|instead of|except)\b[^,.;?]*", re.I)
+# "did the 17-month special go up?" asks about its rate too
+MOVE_INTENT = re.compile(r"\b(go(ne)? up|went up|go(ne)? down|went down|chang\w*|increas\w*|decreas\w*|rais\w*|drop\w*)\b", re.I)
+# a product NAME that contains "rate" isn't a rate question ("how do I avoid the fee on 1st Rate Checking?")
+RATE_IN_NAME = re.compile(r"\b(1st|first) rate\b", re.I)
+# "the purchase APR, not the intro rate", "the non-jumbo special": a qualifier named only to rule it out doesn't count
+NEGATED = re.compile(r"\b(?:not|excluding|other than|besides|rather than|instead of|except)\b[^,.;?]*"
+                     r"|\bnon-?\s?(?:jumbo|business|refinanc\w*|intro\w*|promo\w*)", re.I)
+# what the question asks about the product is not its rate: a requirement, a limit, a term, a cost, a how-to.
+# Those answers are in the text around the tables ("Rates based on a minimum 760 credit score and 75% LTV").
+CONDITION = re.compile(r"\b(credit score|ltv|loan.to.value|qualif\w*|requirement\w*|eligib\w*|closing costs?|"
+                       r"how long|terms? (are )?(available|offered)|repayment|floor|cap(ped)?|maximum apr|highest apr|"
+                       r"lowest (it|the rate) can|never (be )?(less|lower|more|higher)|expire\w*|how do i|what do i (have|need)|"
+                       r"have to do|need to do|minimum credit limit|credit limit|payment on|monthly payment|paid out|"
+                       r"how much (of|can i borrow)|borrow up to|down payment|convert\w*|catch|recoup|"
+                       r"redemption\w*|redeem\w*|cash.?back|points?|fees?)\b", re.I)
 DEPOSITS = {"savings", "money_market", "checking", "certificate", "ira", "hsa"}
 
 # Members' words for each family (kb_rates.FAMILIES uses the site's words). First match wins.
@@ -46,19 +59,19 @@ Q_FAMILIES = [
     ("credit_card", r"credit cards?|\bvisa\b|\bcards?\b"),
     ("atv", r"\batvs?\b|snowmobile|jet.?ski"),
     ("boat_rv", r"\bboats?\b|\brvs?\b|camper|recreational"),
-    ("auto", r"\bauto|\bcars?\b|vehicle|truck|motorcycle"),
+    ("auto", r"\bauto|\bcars?\b|vehicle|truck|motorcycle|model.year"),
     ("heloc", r"heloc|line of credit"),
     ("home_equity_loan", r"home equity"),
     ("home_improvement", r"home improvement|renovat"),
-    ("mortgage", r"mortgage|home loan|\bhouse\b|\d+.year fixed|refinanc|\brefi\b|\barms?\b|adjustable"),
+    ("mortgage", r"mortgage|home loan|\bhouse\b|\d+.?(?:year|yr) fixed|conventional|refinanc|\brefi\b|\barms?\b|adjustable"),
     ("personal_loan", r"personal loan"),
-    ("savings", r"savings"),
+    ("savings", r"savings|\bhys\b"),
 ]
 Q_NAMES = {
     "savings": [("share savings", r"share savings|share account|regular savings|basic savings"),
                 ("bright savings", r"bright"), ("you name it savings", r"you.?name.?it"),
                 ("holiday club", r"holiday|christmas club"), ("launchpad savings", r"launchpad"),
-                ("high-yield savings", r"high.?yield")],
+                ("high-yield savings", r"high.?yield|\bhys\b")],
     "money_market": [("investor's choice", r"investor"), ("achieve", r"achieve")],
     "checking": [("free checking", r"free checking"), ("1st rate checking", r"1st rate|first rate"),
                  ("analysis checking", r"analysis")],
@@ -114,11 +127,12 @@ class RateQuery:
     check_pct: Optional[float]      # "Do any tiers pay 0.35%?" -> 0.35
     metrics: Optional[tuple] = None # rate keys the question names ("APY" -> apy, promo_apy); None = any
     kinds: list = field(default_factory=list)   # loan kinds no vocabulary explains: ["construction loan"]
+    terms: list = field(default_factory=list)   # every term named: "6-month or 24-month?" -> [6, 24]
 
     @property
     def generic(self) -> bool:
         """'What are your certificate rates?' - no product, tier or term named: list everything."""
-        return not self.names and self.term is None and not self.amounts and self.year is None
+        return not self.names and not self.terms and not self.amounts and self.year is None
 
 
 def _amount(num: str, unit: Optional[str]) -> float:
@@ -147,7 +161,7 @@ def unknown_names(question: str) -> list:
         for w in words:
             if w.rstrip("s").isupper() or len(w) < 3:
                 continue          # APY, APRs, IRA ...
-            w = re.sub(r"['’]", "", w.lower())
+            w = re.sub(r"['’]", "", re.sub(r"['’]s$", "", w.lower()))     # "Checking's" -> "checking"
             if w not in GENERIC_NAME_WORDS:
                 out.append(w)
     return out
@@ -169,25 +183,36 @@ def unknown_kinds(ql: str, family: str) -> list:
 
 def parse_question(question: str) -> Optional[RateQuery]:
     ql = question.lower()
+    if CONDITION.search(ql):
+        return None       # "what credit score do I need for the 6.25% HELOC rate?": the answer is in the text
     family = next((f for f, rx in Q_FAMILIES if re.search(rx, ql)), "")
+    if not family:        # a product name implies its family: "What does a Holiday Club account earn?"
+        family = next((f for f, names in Q_NAMES.items() if f not in ("certificate", "ira")
+                       for _, rx in names if re.search(rx, ql)), "")
     if not family:
         return None
-    if not (RATE_INTENT.search(ql) or (family in DEPOSITS and EARN_INTENT.search(ql))
-            or (family not in DEPOSITS and CHARGE_INTENT.search(ql))):
+    intent = RATE_IN_NAME.sub(" ", ql)
+    if not (RATE_INTENT.search(intent) or (family in DEPOSITS and EARN_INTENT.search(ql))
+            or (family not in DEPOSITS and CHARGE_INTENT.search(ql)) or MOVE_INTENT.search(ql)):
         return None
     names = {n for n, rx in Q_NAMES.get(family, []) if re.search(rx, ql)}
     quals = {q for q, rx in Q_QUALS if re.search(rx, NEGATED.sub(" ", ql))}
-    term = None
-    m = Q_TERM.search(ql)
-    if m:
+    terms = []
+    for m in Q_TERM.finditer(ql):
         n = int(m.group(1)) if m.group(1).isdigit() else WORDNUM[m.group(1)]
-        term = n * 12 if m.group(2).startswith("y") else n
+        terms.append(n * 12 if m.group(2).startswith("y") else n)
+    term = terms[0] if terms else None
     amounts = []
     for m in Q_AMOUNT.finditer(ql):
-        amounts.append(_amount(m.group(1), m.group(2)) if m.group(1) else _amount(m.group(3), m.group(4)))
+        a = _amount(m.group(1), m.group(2)) if m.group(1) else _amount(m.group(3), m.group(4))
+        if re.search(r"\b(more than|over|above|greater than|exceeding|bigger than)\s*$", ql[:m.start()]):
+            a += 0.01     # "borrowing more than $300,000" is not in the "$300,000 or less" tier
+        amounts.append(a)
     year = None
-    if family in ("auto", "atv"):
-        m = Q_YEAR.search(ql)
+    if family in ("auto", "atv"):         # the model year, not the year of a date ("in late August 2026 ... a 2017 car")
+        undated = re.sub(r"\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(?:\d{1,2}(?:st|nd|rd|th)?,?\s+)?"
+                         r"20\d\d\b|\b20\d\d-\d\d(?:-\d\d)?\b|\b\d{1,2}/\d{1,2}/20\d\d\b", " ", ql)
+        m = Q_YEAR.search(undated)
         year = int(m.group(1)) if m else None
     extreme = "max" if MAX_WORDS.search(ql) else "min" if MIN_WORDS.search(ql) else None
     if extreme is None and BEST.search(ql):
@@ -195,7 +220,7 @@ def parse_question(question: str) -> Optional[RateQuery]:
     m = Q_PCT.search(ql)
     named = [k for metric, rx in Q_METRICS if re.search(rx, ql) for k in METRIC_KEYS[metric]]
     return RateQuery(family, names, quals, term, amounts, year, extreme, float(m.group(1)) if m else None,
-                     tuple(named) or None, unknown_kinds(ql, family))
+                     tuple(named) or None, unknown_kinds(ql, family), terms)
 
 
 # ---------------------------------------------------------------- choosing the current table
@@ -203,6 +228,28 @@ def parse_question(question: str) -> Optional[RateQuery]:
 def table_rank(doc, row):
     """Rule 2 then rule 3, then a fixed tie-break so the same question always gets the same answer."""
     return (row.effective or date.min, doc.authority, -len(doc.key), doc.key, -row.table)
+
+
+def _values(v: str) -> tuple:
+    return tuple(float(x) for x in re.findall(r"\d+(?:\.\d+)?", v))
+
+
+def fill_metrics(winners, losers):
+    """The winning table may leave out a column another current page prints for the same product and tier
+    (Achieve Money Market: the dated table has no "1st 6 months" promo columns, /earn-more has them). When every
+    number the two rows share is equal, the other row's extra columns are added: same fact, more detail."""
+    others = defaultdict(list)
+    for _, r in losers:
+        others[(r.key, r.slot)].append(r)
+    out = []
+    for d, r in winners:
+        add = {}
+        for o in others.get((r.key, r.slot), []):
+            common = set(o.rates) & set(r.rates)
+            if common and all(_values(o.rates[k]) == _values(r.rates[k]) for k in common):
+                add.update({k: v for k, v in o.rates.items() if k not in r.rates and k not in add})
+        out.append((d, replace(r, rates={**r.rates, **add}) if add else r))
+    return out
 
 
 def compete(pairs):
@@ -232,7 +279,10 @@ def headline(row, family: str) -> float:
 
 def select(pairs, q: RateQuery):
     """-> (main rows, secondary rows) that answer the question."""
-    pairs = [p for p in pairs if q.quals - {"arm"} <= p[1].quals and "arm" not in q.quals]
+    # an "intro" question is also answered by rows that print a promotional rate ("for the 1st 6 months")
+    promo = lambda r: "intro" in r.quals or any(k.startswith("promo_") for k in r.rates)
+    pairs = [p for p in pairs if q.quals - {"arm", "intro"} <= p[1].quals and "arm" not in q.quals
+             and ("intro" not in q.quals or promo(p[1]))]
     if q.names:
         pairs = [p for p in pairs if p[1].name in q.names]
     tagged = []
@@ -243,8 +293,8 @@ def select(pairs, q: RateQuery):
         tagged.append((doc, r, bool(unasked & (SECONDARY | {"business"}))))
 
     rows = [t[1] for t in tagged]
-    if q.term is not None and any(r.term_months is not None for r in rows):
-        tagged = [t for t in tagged if t[1].term_months == q.term]
+    if q.terms and any(r.term_months is not None for r in rows):
+        tagged = [t for t in tagged if t[1].term_months in q.terms]     # "6-month or 24-month": both
     if q.year is not None and any(r.years for r in rows):
         tagged = [t for t in tagged if t[1].years and t[1].years[0] <= q.year <= t[1].years[1]]
     if q.amounts and any(t[1].tier_lo is not None for t in tagged):
@@ -364,6 +414,7 @@ def answer_rate_question(view, question: str) -> Optional[RateAnswer]:
     if any(w not in printed for w in named):
         return None       # a product no rate table names: text search
     winners, losers = compete(pairs)
+    winners = fill_metrics(winners, losers)
     if named:             # "Mortgage Rate Relief Program": only rows of that product, from the current tables
         has = lambda r: all(w in re.sub(r"['’]", "", f"{r.caption} {r.display}".lower()) for w in named)
         winners = [(d, r) for d, r in winners if has(r)]

@@ -44,7 +44,8 @@ TIME = re.compile(r"\b\d{1,2}(:\d\d)?\s*(a\.?m\b\.?|p\.?m\b\.?)|\bnoon\b", re.I)
 PHONE = re.compile(r"\(?\b\d{3}\)?[-. ]\d{3}[-. ]\d{4}\b")
 URL = re.compile(r"https?://|www\.|\b[a-z0-9-]+\.(com|org|net)\b", re.I)
 ADDRESS = re.compile(r"\b\d{2,6}\s+(?:[A-Z0-9][\w.'-]*\s+){1,4}(?:St|Street|Ave|Avenue|Rd|Road|Dr|Drive|Lane|Ln|"
-                     r"Blvd|Boulevard|Way|Court|Ct|Highway|Hwy|Parkway|Pkwy|Place|Pl|Circle|Cir)\b")
+                     r"Blvd|Boulevard|Way|Court|Ct|Highway|Hwy|Parkway|Pkwy|Place|Pl|Circle|Cir)\b"
+                     r"|\bP\.?\s?O\.?\s+Box\s+\d+")
 MONEY = re.compile(r"\$\s?\d")
 ROUTING = re.compile(r"\b\d{9}\b")
 # a rate value is printed like a rate ("6.25%", "5% APR"); "adjust up to 2%" or "80% of costs" is not one
@@ -197,12 +198,15 @@ def build_definitions(view) -> dict:
     return found
 
 
-def expand_definitions(text: str, defs: dict) -> str:
-    """An answer that links a term the site defines elsewhere ('[charter area](map.jpg)') gets the definition."""
-    extra = []
-    for term in LINK_ONLY.findall(text):
+def expand_definitions(text: str, defs: dict, question: str = "") -> str:
+    """An answer that links a term the site defines elsewhere ('[charter area](map.jpg)'), or answers a question
+    naming such a term ("Which Illinois counties are in the charter area?"), gets the site's definition."""
+    extra, seen = [], set()
+    terms = LINK_ONLY.findall(text) + [t for t in defs if len(t) > 6 and re.search(rf"\b{re.escape(t)}\b", question.lower())]
+    for term in terms:
         d = defs.get(term.lower().strip())
-        if d and d not in extra:
+        if d and d not in seen and d not in text:
+            seen.add(d)
             extra.append(f"{term[0].upper()}{term[1:]}: {d}")
     return text + ("\n" + "\n".join(extra) if extra else "")
 
@@ -502,6 +506,9 @@ FILLER = frozenset(tokens("now currently current today presently right said say 
 # words that only say WHICH kind of answer is wanted: "what's the LINK to the branch locator?" is about the locator
 KIND_WORDS = {"a link": frozenset(tokens("link links url urls website web page site online address")),
               "that number": frozenset(tokens("number count total"))}
+# words that only name the answer shape, never what it is about: "what NUMBER do I CALL if my card is stolen?"
+SHAPE_WORDS = frozenset(tokens("number numbers call phone telephone extension ext contact address located location "
+                               "hours open time link url website page date day when"))
 AMOUNT_WORDS = frozenset(tokens("fee fees cost costs charge charges price prices much pay amount"))
 # "has the number of branches CHANGED?" asks about time, not about sentences that contain "changed"
 CHANGE_ASKED = re.compile(r"\b(changed|previous(ly)?|used to|increased|decreased|raised|lowered|dropped)\b", re.I)
@@ -564,8 +571,16 @@ def search(view, question: str, idf: dict, today: date, defs: Optional[dict] = N
         # the needed shape must appear in what we would answer (the sentence and the one or two after it),
         # in text about the thing asked ("Mullan Avenue" hours, not some other branch's hours)
         if about:
-            key = max(about, key=lambda t: idf.get(t, 0.0))      # its most specific word
+            # text about the thing asked: the candidates mentioning the most of its words ("Pennsylvania Avenue
+            # ... Dubuque"); and when the question also names a product ("Visa Signature CARD"), text about that
+            # product, not a news story that happens to say "Signature"
+            key = max(about, key=lambda t: idf.get(t, 0.0))      # its most specific word must be there ("Mullan")
             cands = [c for c in cands if mentions(c, key, acronyms)]
+            count = {id(c): sum(mentions(c, t, acronyms) for t in about) for c in cands}
+            top = max(count.values(), default=0)
+            cands = [c for c in cands if count[id(c)] == top]
+            if products:
+                cands = [c for c in cands if products & context(c)]
         if pattern is MONEY and q - AMOUNT_WORDS:
             # a fee must be the fee asked about: "lost debit card REPLACEMENT", not another debit-card fee
             key = max(q - AMOUNT_WORDS, key=lambda t: idf.get(t, 0.0))
@@ -582,6 +597,11 @@ def search(view, question: str, idf: dict, today: date, defs: Optional[dict] = N
             if overview:
                 overview.also += linked_pages(view, overview.text, (overview.doc,) + overview.also)
                 return overview
+        rest = q - SHAPE_WORDS - AMOUNT_WORDS - about
+        if rest and pattern is not MONEY:
+            # prefer text holding the question's most specific other word ("STOLEN card" -> ext. 201, not ext. 204)
+            key = max(rest, key=lambda t: idf.get(t, 0.0))
+            typed = [c for c in typed if key in context(c)] or typed
         cands = typed
     elif about and (names or acronyms):
         # no answer shape to check, but the question names something ("VTO usage last year?"): text about it
@@ -628,4 +648,4 @@ def search(view, question: str, idf: dict, today: date, defs: Optional[dict] = N
     text = status_prefix(question, text, today) + text + earlier_years(ch.sents[i], doc, cands)
     also = corroborate(view, doc, ch.sents[i][0])
     also += linked_pages(view, text, (doc,) + also)
-    return Hit(text=expand_definitions(text, defs or {}), doc=doc, quote=ch.sents[i][0], also=also[:6])
+    return Hit(text=expand_definitions(text, defs or {}, question), doc=doc, quote=ch.sents[i][0], also=also[:6])

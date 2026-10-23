@@ -148,13 +148,19 @@ def rate_conflicts(snaps) -> list[Found]:
             win = [(d, r) for d, r in winners if _fact(r) in rows_here]
             current = {_fact(r) for _, r in win}
             tier.sort(key=lambda f: (max(f["snaps"]), f["eff"] or date.min))
-            values = []
-            for f in tier:
+            # values hold only the competing numbers ("5.34% APR (outdated)"); where and when go to the reason, so
+            # model years, dates and snapshot numbers can't be mistaken for one of the values
+            bare = [_bare(f["row"]) for f in tier]
+            if len(set(bare)) < len(bare):
+                bare = [_metrics(f["row"]) for f in tier]
+            values, provenance = [], []
+            for f, b in zip(tier, bare):
                 r = f["row"]
                 where = ", ".join(sorted(u.replace("https://www.dupaco.com", "") or "/" for u in f["pages"])[:3])
                 when = ", ".join(sorted(x[:2] for x in f["snaps"]))
                 tag = "current" if _fact(r) in current else "outdated"
-                values.append(f"{fmt_row(r)} [{tag}; {where}; effective {fmt_date(f['eff'])}; snapshots {when}]")
+                values.append(f"{b} ({tag})")
+                provenance.append(f"{b} on {where} (effective {fmt_date(f['eff'])}; downloads {when})")
             label = _tier_label((win[0][1] if win else tier[-1]["row"]))
             topic = _topic(tier[-1]["row"]) + " rate" + (f" ({label})" if label else "")
             if win:
@@ -175,8 +181,24 @@ def rate_conflicts(snaps) -> list[Found]:
             else:
                 resolution, reason = None, "No longer listed in the latest download."
             sources = sorted({(u, max(f["snaps"])) for f in tier for u in f["pages"]})[:8]
+            reason = f"{reason} Values: " + "; ".join(provenance) + "."
             out.append(Found(topic=topic, values=values, sources=sources, resolution=resolution, reason=reason))
     return out
+
+
+def _metrics(r) -> str:
+    return " / ".join(f"{r.rates[k]} {label}" for k, label in
+                      (("rate", "rate"), ("dividend", "dividend rate"), ("apy", "APY"), ("apr", "APR")) if k in r.rates)
+
+
+def _bare(r) -> str:
+    """The number a member compares: APY for deposits, rate and APR for mortgages, APR for other loans."""
+    x = r.rates
+    if "apy" in x:
+        return f"{x['apy']} APY"
+    if "apr" in x and "rate" in x:
+        return f"{x['rate']} rate / {x['apr']} APR"
+    return _metrics(r)
 
 
 # ---------------------------------------------------------------- 2. text conflicts
@@ -256,8 +278,9 @@ def text_conflicts(view, min_pages: int = 3) -> list[Found]:
         newest = lambda where: max(d.published for d, _ in where)
         ranked = sorted(versions.values(), key=newest, reverse=True)
         sample = max(ranked[0], key=lambda x: x[0].published)[1]
-        values = [f"{max(where, key=lambda x: x[0].published)[1][:160]} [{len({d.key for d, _ in where})} page(s), "
-                  f"newest {newest(where):%B} {newest(where).day}, {newest(where).year}]" for where in ranked]
+        values = [max(where, key=lambda x: x[0].published)[1][:160] for where in ranked]
+        provenance = [f"{len({d.key for d, _ in where})} page(s), newest {newest(where):%B} {newest(where).day}, "
+                      f"{newest(where).year}" for where in ranked]
         what = "Forbes recognition count" if changing == ["time"] else "number of " + " / ".join(label[w] for w in changing)
         found.append(Found(
             topic=f"{what}: {sample[:90]}",
@@ -265,7 +288,8 @@ def text_conflicts(view, min_pages: int = 3) -> list[Found]:
             sources=sorted({(d.url, observed_in(view, d)) for where in ranked for d, _ in where})[:8],
             resolution=sample,
             reason="The same statement is repeated across press releases with different numbers; the most "
-                   "recently published version is current, older releases describe the past.",
+                   "recently published version is current, older releases describe the past. Versions, newest "
+                   "first: " + "; ".join(provenance) + ".",
         ))
     return found
 
@@ -328,12 +352,12 @@ def page_changes(snaps) -> list[Found]:
                 v["pages"].add(doc.url)
                 v["sent"] = sent
         order = sorted(versions, key=lambda v: max(versions[v]["snaps"]))
-        values = []
+        values, provenance = [], []
         for v in order:
             x = versions[v]
             pages = ", ".join(sorted(u.replace("https://www.dupaco.com", "") or "/" for u in x["pages"])[:3])
-            values.append(f"{x['sent'][:160]} [{'current' if v == current else 'outdated'}; {pages}; "
-                          f"snapshots {', '.join(sorted(s[:2] for s in x['snaps']))}]")
+            values.append(f"{x['sent'][:160]} ({'current' if v == current else 'outdated'})")
+            provenance.append(f"{', '.join(v)} on {pages} (downloads {', '.join(sorted(s[:2] for s in x['snaps']))})")
         sample = versions[current]["sent"]
         title = latest.pages[where[0][0]].title.split("|")[0]
         title = re.sub(r"^\s*Microsoft Word\s*-\s*|\.docx?\s*$", "", title).strip()   # PDF titles from Word files
@@ -343,7 +367,8 @@ def page_changes(snaps) -> list[Found]:
             sources=sorted({(u, max(versions[v]["snaps"])) for v in order for u in versions[v]["pages"]})[:8],
             resolution=sample,
             reason=(f"The page itself changed this figure between downloads ({' / '.join(', '.join(v) for v in old)} "
-                    f"-> {', '.join(current)}); the version in the newest download is current."),
+                    f"-> {', '.join(current)}); the version in the newest download is current. "
+                    f"Values: {'; '.join(provenance)}."),
         ))
     return found
 
@@ -370,7 +395,17 @@ def merge_twins(found: list[Found]) -> list[Found]:
     return list(by_numbers.values())
 
 
+VARIANT = re.compile(r"\b(jumbo|business|refinance|roth|traditional|ira)\b", re.I)
+
+
+def _order(c: Found):
+    """Plain products before their jumbo / business / refinance / IRA variants, newer model years before older
+    ones, then fewest competing values: the entry a reader means by "the 17-month special" or "the 84-month
+    auto loan" comes first, so it is the one matched with that fact."""
+    years = [int(y) for y in re.findall(r"\b(20\d\d)\b", c.topic)]
+    return (bool(VARIANT.search(c.topic)), -max(years, default=9999), len(c.values), c.topic)
+
+
 def find_conflicts(snaps) -> list[Found]:
-    """Most specific first (fewest competing values), so a broad conflict never stands in for a narrow one."""
     found = merge_twins(rate_conflicts(snaps)) + text_conflicts(snaps[-1]) + page_changes(snaps)
-    return sorted(found, key=lambda c: (len(c.values), c.topic))
+    return sorted(found, key=_order)
