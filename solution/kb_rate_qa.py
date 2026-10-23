@@ -49,7 +49,7 @@ NAMED_YIELD = re.compile(r"\bhigh[- ]?yield\b", re.I)
 # a product NAME that contains "rate" isn't a rate question ("how do I avoid the fee on 1st Rate Checking?")
 RATE_IN_NAME = re.compile(r"\b(1st|first) rate\b", re.I)
 # "the purchase APR, not the intro rate", "the non-jumbo special": a qualifier named only to rule it out doesn't count
-NEGATED = re.compile(r"\b(?:not|excluding|exclude[sd]?|omit(?:s|ted|ting)?|other than|besides|rather than|instead of|except|"
+NEGATED = re.compile(r"\b(?:not|excluding|exclude[sd]?|omit(?:s|ted|ting)?|regardless of|set(?:ting)? aside|aside from|apart from|other than|besides|rather than|instead of|except|"
                      r"don'?t|do not|without|skip|leave out|leave off)\b[^,.;?]*"
                      r"|\bnon-?\s?(?:jumbo|business|refinanc\w*|intro\w*|promo\w*)"
                      r"|\bkeep(?:ing)?\s+[^,.;?]{0,40}?\b(?:separate|apart|aside)\b", re.I)
@@ -66,6 +66,9 @@ TIER_WORDING = re.compile(r"\bcap(?:ped)? at \$|\beligible (?:balance|tier|band)
 # the rate and APR asked side by side with a payment example: a rate question (the example is added from text)
 LISTED_METRICS = re.compile(r"\b(?:rates?|aprs?|apys?)\b\s*(?:,|and)\s*(?:the\s+)?(?:aprs?|apys?|rates?)?\b[^?]{0,40}"
                             r"\b(?:example|monthly) payments?\b", re.I)
+# "the minimum to open", "the opening deposit": the table's "Min. to Open" column
+MIN_OPEN = re.compile(r"\bminimum (?:amount |deposit |balance )?(?:required )?to open\b|\bopening deposit\b|"
+                      r"\bminimum opening\b|\bhow much (?:do i need )?to open\b", re.I)
 # the question names the rate sheet as the place to look
 RATE_SHEET = re.compile(r"\brates?\s+(?:table|sheet|page|snapshot)s?\b|\brate sheet\b", re.I)
 DEPOSITS = {"savings", "money_market", "checking", "certificate", "ira", "hsa"}
@@ -85,9 +88,9 @@ Q_FAMILIES = [
     ("heloc", r"heloc|line of credit"),
     ("home_equity_loan", r"home equity"),
     ("home_improvement", r"home improvement|renovat"),
+    ("personal_loan", r"personal loan"),
     ("mortgage", r"mortgage|home loan|\bhouse\b|\d+.?(?:year|yr) fixed|conventional|refinanc|\brefi\b|\barms?\b|adjustable|"
                  r"home purchase|\d+.?(?:year|yr) (?:fixed )?purchase|purchase (?:loan|tier|row)"),
-    ("personal_loan", r"personal loan"),
     ("savings", r"savings|\bhys\b"),
 ]
 Q_NAMES = {
@@ -322,13 +325,14 @@ def normalize(question: str) -> str:
 
 def parse_question(question: str) -> Optional[RateQuery]:
     ql = normalize(question)
-    if CONDITION.search(TIER_WORDING.sub(" ", ql)) and not LISTED_METRICS.search(ql):
+    if CONDITION.search(TIER_WORDING.sub(" ", ql)) and not LISTED_METRICS.search(ql) and not MIN_OPEN.search(ql):
         return None       # "what credit score do I need for the 6.25% HELOC rate?": the answer is in the text
     if re.search(r"\bwhere\b[^?]*\b(?:find|see|look|check|view|get)\b[^?]*\b(?:online|website|site|web page|page)\b", ql):
         return None       # "where do I find certificate rates online?" asks for the page, not the numbers
     # "the older CHECKING-PAGE examples", "an August checking table" name where a figure was printed, not the
     # product asked about - unless nothing else names one
-    pages = re.sub(r"\b(?:checking|savings|money market)\s+(?:pages?|tables?|tabs?|sheets?)\b", " ", ql)
+    asked_text = NEGATED.sub(" ", ql)      # "the regular 48-month certificate, excluding specials and IRAs"
+    pages = re.sub(r"\b(?:checking|savings|money market)\s+(?:pages?|tables?|tabs?|sheets?)\b", " ", asked_text)
     families = [f for f, rx in Q_FAMILIES if re.search(rx, pages)] or [f for f, rx in Q_FAMILIES if re.search(rx, ql)]
     # a product name implies its family ("What does a Holiday Club account earn?") and beats a bare family word
     # ("money-market yields were given for Share Savings": the question is about Share Savings)
@@ -340,9 +344,10 @@ def parse_question(question: str) -> Optional[RateQuery]:
     intent = RATE_IN_NAME.sub(" ", ql)
     if not (RATE_INTENT.search(intent) or (family in DEPOSITS and EARN_INTENT.search(ql))
             or (family not in DEPOSITS and CHARGE_INTENT.search(ql)) or MOVE_INTENT.search(ql)
-            or ((EXIST_INTENT.search(ql) or COMPARE_INTENT.search(ql)) and (Q_TERM.search(ql) or Q_AMOUNT.search(ql)))):
+            or ((EXIST_INTENT.search(ql) or COMPARE_INTENT.search(ql)) and (Q_TERM.search(ql) or Q_AMOUNT.search(ql)))
+            or MIN_OPEN.search(ql)):
         return None
-    names = {n for n, rx in Q_NAMES.get(family, []) if re.search(rx, ql)} or fuzzy_names(family, ql)
+    names = {n for n, rx in Q_NAMES.get(family, []) if re.search(rx, asked_text)} or fuzzy_names(family, ql)
     quals = {q for q, rx in Q_QUALS if re.search(rx, NEGATED.sub(" ", ql))}
     both = "business" in quals and bool(re.search(r"\b(?:personal|consumer|individuals?)\b", NEGATED.sub(" ", ql)))
     if both:
@@ -375,7 +380,7 @@ def parse_question(question: str) -> Optional[RateQuery]:
     # "its MINIMUM opening amount", "the maximum loan amount" name a requirement, not the lowest or highest rate
     plain = re.sub(r"\b(?:minimum|maximum|max|min)\s+(?:(?:opening|initial|required|loan)\s+)?(?:amounts?|deposits?|"
                    r"balances?|opening|to (?:open|earn)|credit|payments?|terms?|ltv)\b"
-                   r"|\b(?:opening|deposit|balance)\s+(?:minimums?|maximums?)\b", " ", ql)
+                   r"|\b(?:opening|deposit|balance)\s+(?:minimums?|maximums?)\b", " ", asked_text)
     extreme = "max" if MAX_WORDS.search(plain) else "min" if MIN_WORDS.search(plain) else None
     top_tier = bool(amounts and extreme and TOP_TIER.search(ql))
     if extreme is None and BEST.search(ql):
@@ -688,6 +693,14 @@ def answer_rate_question(view, question: str) -> Optional[RateAnswer]:
             return RateAnswer(text="I don't know a current rate for that: the current rate tables no longer list it. "
                                    "Please contact Dupaco or see https://www.dupaco.com/rates.", confident=False)
     main, extra = select(winners, q)
+    opens = sorted({r.minimums["min_open"] for _, r in main if "min_open" in r.minimums})
+    open_line = f"Minimum to open: {opens[0]}." if MIN_OPEN.search(question) and len(opens) == 1 else ""
+    if open_line and not q.metrics:
+        # "the minimum to open Share Savings": the table's own "Min. to Open" column, not a tier's rate
+        product = re.split(r",\s*\$", main[0][1].display)[0]
+        return RateAnswer(text=f"{product}: minimum to open {opens[0]}.",
+                          sources=[(d.url, r.raw, observed_in(view, d)) for d, r in main[:1]],
+                          effective=[main[0][1].effective])
     if main and all(r.effective and r.effective > today for _, r in main):
         # the only table printed for it then had not taken effect: what applied on that day is unknown, and the
         # announced number is not it
@@ -770,6 +783,8 @@ def answer_rate_question(view, question: str) -> Optional[RateAnswer]:
                   and r.tier_lo > max(q.amounts) and any(_first_number(v) for v in r.rates.values())]
         if higher:
             lines.insert(len(lines), f"Dividends start at {fmt_money(min(r.tier_lo for r in higher))}.")
+    if open_line:
+        lines.append(open_line)        # "the APY and the minimum to open": both
     lines.append("Source: " + ", ".join(u for u, _, _ in urls[:3]))
 
     # stale values: rows from losing tables that would also have answered this question, and whose

@@ -160,6 +160,12 @@ CONTROLS = {
         ("What does High-Yield Savings pay on $1,000,000?", None, HAS("2.42%", "2.45%"), ()),
         ("Give the 10-month certificate special's dividend rate and omit its APY.", None, HAS("3.86%"), ("3.90%",)),
     ],
+    "the opening minimum, and what is excluded": [
+        ("What do I need to deposit at minimum to open a Share Savings account?", None, HAS("$25.00"), ("0.20%",)),
+        ("For Share Savings, give the top-tier APY and the minimum to open.", None, HAS("0.20%", "$25.00"), ()),
+        ("What does a regular 24-month certificate earn, setting aside IRAs and specials?", None, HAS("2.50%"), ()),
+        ("What APR does a conventional Dupaco personal loan carry for 36 months?", None, HAS("10.49%"), ()),
+    ],
     "places, zero tiers, wrapped lines": [
         ("What's the address of the Galena, Illinois branch?", None, HAS("11375 Oldenburg"), ()),
         ("Is anything earned on $40 in Share Savings?", None, HAS("$100"), ()),
