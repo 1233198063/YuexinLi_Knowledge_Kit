@@ -28,6 +28,12 @@ The transfer depends on what kind of change it was:
 The lesson: **a rule derived from the scorer or from evidence across authors transfers almost fully. A rule
 derived from one failing item mostly fits that item's wording.**
 
+**Templated banks inflate dev gains.** Some authors generate one question pattern for every product. legacy-dev
+asks "What is the published minimum to open X, regardless of ...?" for each savings product, and "the APY alone
+for the regular N-month certificate, excluding specials and IRAs" for each term. One fix then lifts many items:
+`2980092` raised legacy-dev by .044 and left its blind holdout equal. A dev gain is evidence of generalization
+only when it comes from items that aren't copies of one template.
+
 ## 2. A system tuned on its own bank
 
 The companion runtime was selected on its 226-question disclosed bank, km226. There it scores 0.979. On the same

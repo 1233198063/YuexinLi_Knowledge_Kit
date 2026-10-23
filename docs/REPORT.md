@@ -141,8 +141,8 @@ Both were run with the unchanged harness, the same snapshots and the same synthe
 |---|---|---:|---:|
 | ours-dev (226) | us | **0.874** | 0.678 (2 errors) |
 | ours-holdout (176), blind for both | nobody | **0.765** | 0.686 |
-| km226 (226) | companion | 0.700 | **0.979** (2 errors) |
-| legacy-dev (333) | companion | **0.800** | 0.652 |
+| km226 (226) | companion | 0.701 | **0.979** (2 errors) |
+| legacy-dev (333) | companion | **0.855** | 0.652 |
 | legacy-holdout (176) | companion, round 1 | 0.576 | **0.769** |
 | A-dev (100) | companion; us since its release | **0.817** | 0.410 |
 | A-confirm (60) | companion, round 2 | **0.584** | 0.516 |

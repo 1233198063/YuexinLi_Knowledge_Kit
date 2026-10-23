@@ -47,7 +47,9 @@ The columns show accuracy (the harness `qa_score`). The banks are described in �
 | `e957c52` named features, eyebrow headings | 0.969 | 0.859 | 0.675 | 0.800 | 0.819 | 0.368 | 0.925 | 0.757 | 0.576 | 0.506 | 0.284 | 0.478 |
 | `7cdf25d` **pages' FAQs kept** | 0.969 | 0.867 | 0.675 | 0.800 | 0.817 | 0.537 | 0.941 | 0.761 | 0.577 | 0.580 | 0.300 | 0.478 |
 | `196c068` every snapshot, newest band, rate sheet | 0.969 | 0.867 | 0.700 | 0.800 | 0.817 | 0.537 | 0.941 | 0.761 | 0.577 | 0.580 | 0.300 | 0.478 |
-| `0f89a2d` places, zero tiers, wrapped lines (current) | 0.969 | 0.874 | 0.700 | 0.800 | 0.817 | 0.537 | 0.941 | 0.765 | 0.576 | 0.584 | 0.300 | 0.478 |
+| `0f89a2d` places, zero tiers, wrapped lines | 0.969 | 0.874 | 0.700 | 0.800 | 0.817 | 0.537 | 0.941 | 0.765 | 0.576 | 0.584 | 0.300 | 0.478 |
+| `0f16e25` the asked metric next to "High-Yield" | 0.969 | 0.874 | 0.700 | 0.812 | 0.817 | 0.537 | 0.941 | 0.765 | 0.576 | 0.584 | 0.300 | 0.478 |
+| `2980092` minimum to open, exclusions (current) | 0.969 | 0.874 | 0.701 | 0.855 | 0.817 | 0.537 | 0.941 | 0.765 | 0.576 | 0.584 | 0.300 | 0.478 |
 
 Commits that only touched tests or docs are left out, as are runs with identical scores (`b17b9fe`, `bdd8e5b`,
 `51ddee3`, `51bbd72`, `f576948`). Raw outputs are kept outside the repository: they contain snapshot text.
@@ -233,6 +235,15 @@ The commits:
   - smallest/largest redemption limits.
 
   Two broader versions were measured and narrowed: "amount" as a money word, and "earned" for "earned income".
+- `0f16e25`: "High-Yield Savings" names a product, so its "yield" doesn't ask for the APY; "exclude" and "omit" rule
+  metrics out. legacy-dev traps 20 → 15.
+- `2980092`:
+  - "the minimum to open" answers the table's Min. to Open column;
+  - product names come from what is asked, not from what is excluded;
+  - a named personal loan beats the mortgage word "conventional".
+
+  legacy-dev .812 → .855, while its blind holdout stayed equal. The dev gain came from templated items, one
+  question pattern repeated for several products. See GENERALIZATION §1.
 
 ### Decisions left to the owner
 
