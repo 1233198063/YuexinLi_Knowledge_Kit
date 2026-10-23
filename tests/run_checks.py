@@ -149,6 +149,12 @@ CONTROLS = {
         ("Is there a penalty for paying off a Dupaco student loan early?", None, HAS("prepayment"), ()),
         ("Is there a penalty for paying off a Dupaco home equity loan early?", None, HAS("paying it off early"), ()),
     ],
+    "the companion's specialist pages": [
+        ("Can I put my Dupaco debit card or credit card in Samsung Pay or Google Pay?", None, HAS("debit", "credit", "Samsung Pay"), ()),
+        ("What are the ways to qualify for Dupaco membership, and where do I start or continue an application?", None,
+         HAS("Rural Ideas Network", "join.dupaco.com"), ()),
+        ("What free admission do Dupaco members get through the museum partnership?", None, HAS("museum"), ("Rural Ideas",)),
+    ],
     "a named product beats a family word": [
         ("Leave the money market numbers aside: what APY does Share Savings pay on $12,000?", None, HAS("0.15%"), ("0.30%",)),
         ("What APY does the Investor's Choice money market pay on $12,000?", None, HAS("0.30%"), ("0.15%",)),

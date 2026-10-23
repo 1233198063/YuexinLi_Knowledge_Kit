@@ -25,6 +25,7 @@ except ImportError:  # running outside the harness: find harness/contract.py in 
     sys.path.insert(0, str(next(d / "harness" for d in HERE.parents if (d / "harness" / "contract.py").exists())))
     from contract import Answer, Conflict, Snapshot, Source  # noqa: E402
 
+from kb_companion import Companion  # noqa: E402
 from kb_conflicts import find_conflicts  # noqa: E402
 from kb_pages import SnapView, index_doc, make_doc, observed_in  # noqa: E402
 from kb_rate_qa import answer_rate_question, keep_asked_metrics, parse_question  # noqa: E402
@@ -218,9 +219,18 @@ class KnowledgeBase:
         self.docs = {}    # (url key, version hash) -> PageDoc
         self.idf = {}     # snapshot_id -> {term: idf} over that snapshot's chunks
         self.defs = {}    # snapshot_id -> {"charter area": "Iowa: Any county; ..."} terms the site defines
+        try:              # the companion runtime as a specialist for five kinds of page (kb_companion.py)
+            self.companion = Companion()
+        except Exception:
+            self.companion = None
 
     # ------------------------------------------------------------ ingest
     def ingest(self, snapshot: Snapshot) -> None:
+        if self.companion is not None:
+            try:
+                self.companion.ingest(snapshot)
+            except Exception:           # it must never cost an answer of this system's own
+                self.companion = None
         view = SnapView(snapshot.snapshot_id, snapshot.taken_on)
         for p in snapshot.pages:
             d = make_doc(p.url, p.title, p.markdown)
@@ -284,6 +294,13 @@ class KnowledgeBase:
         # a day before the first download has no website to show ("the footnote's 03/03/2026" is a table date)
         first = self.snaps[0].taken_on if self.snaps else ""
         days = [d for d in asked_days(question, year) if (not cutoff or d.isoformat() <= cutoff) and d.isoformat() >= first]
+        if self.companion is not None and len(days) < 2 and not parse_question(question):
+            # a text question about membership routes, wallets, contact routes, the correction policy or a card
+            # offer: the companion's specialist handler, when one answers (measured better on every dev bank)
+            special = self.companion.specialist_answer(question, cutoff)
+            if special is not None:
+                return Answer(text=special.text, confident=special.confident, conflict_note=special.conflict_note,
+                              sources=[Source(url=x.url, snapshot_id=x.snapshot_id, quote=x.quote) for x in special.sources])
         if len(days) >= 2:
             if TRAJECTORY.search(question):
                 # "how did it change from January to May?": every download in between too, not just the ends
