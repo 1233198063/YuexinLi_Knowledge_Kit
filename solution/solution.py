@@ -82,7 +82,7 @@ def with_window_verdict(a: Answer, question: str) -> Answer:
 
 # a rate question that also asks the offer's timing or conditions, which only its text gives
 RATE_TERMS = re.compile(r"\b(window|expir\w*|clock|timing|deadline|posting|posts?|posted|qualif\w*|how long|"
-                        r"valid|anchor)\b", re.I)
+                        r"valid|anchor|example payments?|monthly payments?)\b", re.I)
 
 
 # stricter for text answers, where "how do I change my address?" is not about a change on the site
@@ -125,6 +125,8 @@ INVALID = "invalid"   # a date that doesn't exist ("February 30, 2035"): no snap
 NAMED_DAY = re.compile(r"\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?[\s-]+(\d{1,2})(?:st|nd|rd|th)?\b"
                        r"(?:,?\s+(20\d\d)\b)?|\b(20\d\d)-(\d\d)-(\d\d)\b|\b(\d{1,2})/(\d{1,2})/(20\d\d)\b"
                        r"|\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(20\d\d)\b", re.I)   # May 2035
+EVERY_SNAPSHOT = re.compile(r"\b(?:across|in|over|for)\s+(?:all|each|every)\s+(?:of\s+the\s+)?(?:five\s+|5\s+)?(?:20\d\d\s+)?"
+                            r"(?:snapshots?|crawls?|downloads?|captures?)\b|\b(?:each|every)\s+(?:snapshot|crawl|download)\b", re.I)
 # a question about the path between two days, not only its two ends
 TRAJECTORY = re.compile(r"\b(chang\w*|mov(?:e|ed|es)|went|rose|fell|shift\w*|trend\w*|evolv\w*|over time|history)\b", re.I)
 # two days asked side by side: "August 27 AND September 28", "from May 12 TO June 9", "compare ... both dates"
@@ -308,6 +310,9 @@ class KnowledgeBase:
             if special is not None:
                 return Answer(text=special.text, confident=special.confident, conflict_note=special.conflict_note,
                               sources=[Source(url=x.url, snapshot_id=x.snapshot_id, quote=x.quote) for x in special.sources])
+        if len(days) < 2 and EVERY_SNAPSHOT.search(question):
+            # "across all five snapshots", "in each crawl": every download, up to the date asked
+            days = [date.fromisoformat(s.taken_on) for s in self.snaps if not cutoff or s.taken_on <= cutoff]
         if len(days) >= 2:
             if TRAJECTORY.search(question):
                 # "how did it change from January to May?": every download in between too, not just the ends
@@ -381,7 +386,11 @@ class KnowledgeBase:
                     terms = re.sub(r"\b(?:aprs?|apys?|rates?|interest|yields?|dividends?|percentages?|"
                                    r"annual percentage \w+)\b", " ", question, flags=re.I)
                     hit = search(view, terms, self.idf[view.snapshot_id], today, self.defs[view.snapshot_id])
-                    if hit is not None and hit.confident and hit.doc and hit.quote not in text:
+                    # the added sentence must be about the term asked ("payment" for an example payment, "post" for
+                    # a posting window) - not a calculator page that matched the product's other words
+                    asked = {w.lower().rstrip("s")[:5] for w in RATE_TERMS.findall(question) for w in w.split()}
+                    if hit is not None and hit.confident and hit.doc and hit.quote not in text and \
+                            any(a in hit.text.lower() for a in asked):
                         text += "\n" + hit.text
                         sources.append(Source(url=hit.doc.url, snapshot_id=observed_in(view, hit.doc), quote=hit.quote))
             return Answer(text=text, confident=rate.confident, conflict_note=rate.note, sources=sources)

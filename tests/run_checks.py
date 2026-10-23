@@ -145,6 +145,16 @@ CONTROLS = {
         ("Could you look up my savings balance from these pages?", None, REFUSE, ()),
         ("What is the minimum balance to earn the 1st Rate Checking APY?", None, HAS("$5,000"), ()),
     ],
+    "every snapshot, the newest band, the rate sheet": [
+        ("Show the 20-year purchase mortgage APR in every crawl.", None, HAS("As of May 12", "As of September 28"), ()),
+        ("What is the 20-year purchase mortgage APR?", None, HAS("APR"), ("As of May 12",)),
+        ("For the newest model-year auto band, what are the 60- and 84-month APRs?", None, HAS("5.39%", "5.59%"), ("5.64%",)),
+        ("What are the 60-month auto APRs for every model year band?", None, HAS("5.39%", "5.64%"), ()),
+        ("What are the most recent 60-month auto APRs for a 2025 car?", None, HAS("5.39%"), ("8.59%",)),
+        ("For a 2025 car, what are the APRs from 60 through 84 months?", None, HAS("5.39%", "5.49%", "5.59%"), ("5.19%",)),
+        ("Did the rates table list Launchpad Savings?", "2026-08-27", HAS("not listed"), ()),
+        ("Did the rates table list Launchpad Savings?", "2026-09-28", HAS("3.25%"), ()),
+    ],
     "a price of nothing, for the thing asked": [
         ("Is there a charge for the Financial Wellness program for employers?", None, HAS("free"), ()),
         ("How much does auto insurance from Dupaco cost per month?", None, REFUSE, ()),

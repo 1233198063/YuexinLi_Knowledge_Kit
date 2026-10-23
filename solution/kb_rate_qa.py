@@ -59,6 +59,13 @@ CONDITION = re.compile(r"\b(credit score|ltv|loan.to.value|qualif\w*|requirement
                        r"have to do|need to do|minimum credit limit|credit limit|payment on|monthly payment|paid out|"
                        r"how much (of|can i borrow)|borrow up to|down payment|convert\w*|catch|recoup|"
                        r"redemption\w*|redeem\w*|cash.?back|points?|fees?)\b", re.I)
+# words that describe the tier itself, not a condition: "the tier CAPPED at $100,000", "the ELIGIBLE balance band"
+TIER_WORDING = re.compile(r"\bcap(?:ped)? at \$|\beligible (?:balance|tier|band)\w*", re.I)
+# the rate and APR asked side by side with a payment example: a rate question (the example is added from text)
+LISTED_METRICS = re.compile(r"\b(?:rates?|aprs?|apys?)\b\s*(?:,|and)\s*(?:the\s+)?(?:aprs?|apys?|rates?)?\b[^?]{0,40}"
+                            r"\b(?:example|monthly) payments?\b", re.I)
+# the question names the rate sheet as the place to look
+RATE_SHEET = re.compile(r"\brates?\s+(?:table|sheet|page|snapshot)s?\b|\brate sheet\b", re.I)
 DEPOSITS = {"savings", "money_market", "checking", "certificate", "ira", "hsa"}
 
 # Members' words for each family (kb_rates.FAMILIES uses the site's words). First match wins.
@@ -149,7 +156,7 @@ Q_PCT = re.compile(r"(\d+(?:\.\d+)?)\s*%")
 # "minimum"/"maximum" alone is usually the deposit or loan amount ("the APY/minimum pair"); next to a rate word
 # ("the maximum APR", "minimum rate") it is the extreme
 RATE_NEAR = r"(?=\s+(?:[\w-]+\s+)?(?:rates?|aprs?|apys?|yields?|dividends?|interest)\b)"
-MAX_WORDS = re.compile(rf"\b(highest|most|top|(?:maximum|max){RATE_NEAR})\b", re.I)
+MAX_WORDS = re.compile(rf"\b(highest|most(?!\s+(?:recent|current|up.to.date))|top|(?:maximum|max){RATE_NEAR})\b", re.I)
 MIN_WORDS = re.compile(rf"\b(lowest|cheapest|least|(?:minimum|min){RATE_NEAR})\b", re.I)
 BEST = re.compile(r"\bbest\b", re.I)
 # the top (or bottom) balance tier itself, asked next to a balance: "...for $12,000, and the highest tier's APY/threshold"
@@ -177,6 +184,8 @@ class RateQuery:
     also_refinance: bool = False  # "how did purchase and refinance quotes compare?": both
     more_years: list = field(default_factory=list)   # model years after the first ("2022 ... and 2025")
     term_ends: bool = False       # "the shortest and longest terms": the two ends only
+    newest_band: bool = False     # "the newest model-year band": that band only
+    term_span: Optional[tuple] = None   # "from 48 through 84 months": every term in between (in months)
 
     @property
     def generic(self) -> bool:
@@ -290,16 +299,28 @@ def unknown_kinds(ql: str, family: str) -> list:
     return out
 
 
+def term_span(ql: str) -> Optional[tuple]:
+    """'from 48 through 84 months', '24 to 60 months' -> (48, 84): a range of terms, in months."""
+    m = re.search(r"\b(\d{1,3})(?:[- ]?(months?|years?))?\s*(?:through|thru|to|-|–)\s*(\d{1,3})[- ]?(months?|years?)\b", ql)
+    if not m:
+        return None
+    unit = 12 if m.group(4).startswith("y") else 1
+    lo, hi = int(m.group(1)) * unit, int(m.group(3)) * unit
+    return (lo, hi) if lo < hi else None
+
+
 def normalize(question: str) -> str:
     """'personal-loan' -> 'personal loan', 'home-purchase' -> 'home purchase'; 'First Rate Checking' is the
     site's '1st Rate Checking'."""
     ql = re.sub(r"(?<=[a-z])-(?=[a-z])", " ", question.lower())
+    # "the 60- and 84-month APRs", "60 or 72 months": both are terms
+    ql = re.sub(r"\b(\d{1,3})-?\s*(and|or|&)\s*(\d{1,3})[- ](months?|years?|yrs?|mos?)\b", r"\1-\4 \2 \3-\4", ql)
     return re.sub(r"\bfirst rate\b", "1st rate", ql)
 
 
 def parse_question(question: str) -> Optional[RateQuery]:
     ql = normalize(question)
-    if CONDITION.search(ql):
+    if CONDITION.search(TIER_WORDING.sub(" ", ql)) and not LISTED_METRICS.search(ql):
         return None       # "what credit score do I need for the 6.25% HELOC rate?": the answer is in the text
     if re.search(r"\bwhere\b[^?]*\b(?:find|see|look|check|view|get)\b[^?]*\b(?:online|website|site|web page|page)\b", ql):
         return None       # "where do I find certificate rates online?" asks for the page, not the numbers
@@ -366,7 +387,9 @@ def parse_question(question: str) -> Optional[RateQuery]:
                      metrics=tuple(named) or None, kinds=unknown_kinds(ql, family), terms=terms, ruled_out=ruled_out,
                      top_tier=top_tier, also_business=both,
                      also_refinance=bool("refinance" in quals and re.search(r"\bpurchas\w*", NEGATED.sub(" ", ql))),
-                     more_years=years,
+                     more_years=years, term_span=term_span(ql),
+                     newest_band=bool(re.search(r"\b(?:newest|latest|most recent|current)\b[^?]{0,30}\b(?:model.year|band|vehicles?)\b"
+                                                r"|\bnewest.vehicle", ql)),
                      term_ends=bool(re.search(r"\bshortest\b", ql) and re.search(r"\blongest\b", ql)))
 
 
@@ -474,7 +497,10 @@ def select(pairs, q: RateQuery):
         tagged.append((doc, r, bool(unasked & (SECONDARY | {"business"}))))
 
     rows = [t[1] for t in tagged]
-    if q.terms and any(r.term_months is not None for r in rows):
+    if q.term_span and any(r.term_months is not None for r in rows):
+        lo, hi = q.term_span
+        tagged = [t for t in tagged if t[1].term_months is not None and lo <= t[1].term_months <= hi]
+    elif q.terms and any(r.term_months is not None for r in rows):
         tagged = [t for t in tagged if t[1].term_months in q.terms]     # "6-month or 24-month": both
     if q.year is not None and any(r.years for r in rows):
         asked_years = [q.year] + q.more_years
@@ -498,6 +524,11 @@ def select(pairs, q: RateQuery):
 
     main = [(d, r) for d, r, sec in tagged if not sec]
     extra = [(d, r) for d, r, sec in tagged if sec]
+    if q.newest_band and any(r.years for _, r in main):
+        # "the newest model-year band": the band reaching the latest model year, only
+        top = max(r.years[1] for _, r in main if r.years)
+        main = [(d, r) for d, r in main if r.years and r.years[1] == top]
+        extra = []
     if q.term_ends and main and any(r.term_months for _, r in main):
         # "the shortest and longest terms": the two ends, not the terms between them
         terms = [r.term_months for _, r in main if r.term_months]
@@ -634,6 +665,9 @@ def answer_rate_question(view, question: str) -> Optional[RateAnswer]:
     if q is None:
         return None
     pairs = [(d, r) for d in view.pages.values() if d.kind != "expired" for r in d.rates if r.family == q.family]
+    if RATE_SHEET.search(question) and PRESENCE.search(question):
+        # "was it listed in the rates table?": the rate sheet itself, not another page's copy
+        pairs = [(d, r) for d, r in pairs if d.kind == "rates"] or pairs
     if not pairs:
         return None                                   # the site has no rate table for this: leave it to text search
     printed = re.sub(r"['’]", "", " ".join(f"{r.caption} {r.display}" for _, r in pairs).lower())
