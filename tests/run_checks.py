@@ -154,6 +154,8 @@ CONTROLS = {
         ("What are the ways to qualify for Dupaco membership, and where do I start or continue an application?", None,
          HAS("Rural Ideas Network", "join.dupaco.com"), ()),
         ("What free admission do Dupaco members get through the museum partnership?", None, HAS("museum"), ("Rural Ideas",)),
+        ("Which Visa credit cards can individuals and businesses get from Dupaco?", None, HAS("Platinum", "Rewards", "Business"), ()),
+        ("What interest rate does Dupaco publish for a share-secured loan?", None, REFUSE, ()),
     ],
     "a named product beats a family word": [
         ("Leave the money market numbers aside: what APY does Share Savings pay on $12,000?", None, HAS("0.15%"), ("0.30%",)),

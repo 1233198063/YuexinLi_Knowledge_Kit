@@ -2,11 +2,12 @@
 The companion runtime (companion/, the owner's second build of this assessment, merged unchanged from
 github.com/yushengzheng421-cmd/knowledge at the commit in companion/SOURCE_COMMIT) as a specialist.
 
-Measured on every development bank, handler by handler, it beats this system on five kinds of page:
+Measured on every development bank, handler by handler, it beats this system on a few kinds of page:
 membership routes and application links, mobile wallets, contact routes, the privacy policy's correction
-procedure, and card offers. It is weaker everywhere else, including fees, branches and generic search.
-So only answers that come from those five handlers are used, and only for questions this system
-answers from text, not from its rate tables.
+procedure, card offers, the list of credit cards, rates the site doesn't publish (share-secured, construction
+loans) and the homebuyer grants. It is weaker everywhere else, including fees, branches, mortgages and generic
+search. So only answers from those handlers are used, and only for questions this system answers from text,
+not from its rate tables. Handlers with evidence only on the companion's own tuning bank are left out.
 """
 import copy
 import importlib.util
@@ -15,7 +16,8 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent / "companion"
-SPECIALISTS = ("_join_answer", "_wallet_answer", "_contact_answer", "_policy_correction_answer", "_offer_answer")
+SPECIALISTS = {"services": ("_join_answer", "_wallet_answer", "_contact_answer", "_policy_correction_answer", "_offer_answer"),
+               "loans": ("_cards", "_unpublished", "_grant")}
 
 
 class Companion:
@@ -30,9 +32,10 @@ class Companion:
         self.system = module.build()
         self.routes = []                     # specialist handlers that answered during the current call
         self.cache = {}
-        services = next(m for m in self.system._spine.modules if m.__name__.endswith("services"))
-        for name in SPECIALISTS:
-            setattr(services, name, self._recording(getattr(services, name), name))
+        for module_name, names in SPECIALISTS.items():
+            module = next(m for m in self.system._spine.modules if m.__name__.endswith(module_name))
+            for name in names:
+                setattr(module, name, self._recording(getattr(module, name), name))
 
     def _recording(self, handler, name):
         def call(*args):
@@ -57,8 +60,8 @@ class Companion:
                 answer = None
             self.cache[key] = (answer, tuple(self.routes))
         answer, routes = self.cache[key]
-        if answer is None or not routes or not answer.confident:
-            return None
+        if answer is None or not routes or not (answer.confident or "_unpublished" in routes):
+            return None       # (its "the site doesn't publish that rate" handler answers by declining)
         if "_join_answer" in routes and OTHER_MEMBERSHIP.search(question):
             return None       # "the automatic museum-membership benefit" is not about joining the credit union
         return copy.deepcopy(answer)
