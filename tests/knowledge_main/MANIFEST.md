@@ -15,6 +15,18 @@ Run against this solution with `python tests/knowledge_main/run.py [-v]`.
 | parent_custody/limited_mechanism_controls.py (13) | rounds/2026-10-22-round3/test-custody/parent-45e1/tests (commit 5a139a8) | - | behaviour; suites/submission/solution.py points ROOT/'submission' at this solution |
 | parent_custody/source_order_controls.py (3) | same | - | behaviour |
 | parent_custody/temporal_controls.py (19) | same | - | behaviour |
+| request_evidence/test_request_evidence_v2.py (90 developer controls) | rounds/2026-10-22-followup-new-cases/request-evidence-v2/review/precode (commit 9a9a004) | - | diagnostic only, run by hand (below) |
+
+Not copied: provenance-occurrences-v1 and typed-independent-fields-v1 (they read that runtime's internals:
+parent_runtime modules, `contexts`, `cache`), and every `reviewer-only/` heldback set - by that repository's own
+protocol the coder never reads or runs them; our blind banks play that role here.
+
+`request_evidence` is a strict whole-answer audit: every substantive word of the body must map to the control's
+evidence, every requested slot must be stated, confidence must match the request contract. Run it with
+`REQUEST_EVIDENCE_RUNTIME=tests/knowledge_main/suites/submission python -B tests/knowledge_main/suites/request_evidence/test_request_evidence_v2.py`.
+On arrival: 0/90 here, 22/90 for the other runtime (its baseline). Most failures here are the audit's
+"unmapped body terms" (our answers prefix the section title and add notes), so it is kept as a diagnostic of
+answer form, not as a target.
 
 The question banks (the 226-question disclosed development suite with its 16-topic conflict proxy, legacy509,
 round-2 authors A and B, round-3 author C) are now published there too; `tests/banks.py` scores them with the
