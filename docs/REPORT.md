@@ -17,11 +17,11 @@ and the bank results. It is written for reviewers of this assessment. Iteration 
 
   | bank | first solution → now |
   |---|---|
-  | our own independent holdout (blind) | 0.642 → **0.761** |
-  | legacy holdout (blind) | 0.189 → **0.577** |
+  | our own independent holdout (blind) | 0.642 → **0.765** |
+  | legacy holdout (blind) | 0.189 → **0.576** |
   | C confirmation (blind) | 0.266 → **0.478** |
   | B confirmation (blind) | 0.170 → **0.300** |
-  | A confirmation (blind) | 0.502 → **0.580** |
+  | A confirmation (blind) | 0.502 → **0.584** |
   | development banks | gains of +0.10 (A) to +0.53 (C) each |
 
 - **Against the companion system** on the same banks with the same harness, each system is stronger on the banks
@@ -139,13 +139,13 @@ Both were run with the unchanged harness, the same snapshots and the same synthe
 
 | bank (items) | who tuned on it | this system | companion `2d6b8d6e` |
 |---|---|---:|---:|
-| ours-dev (226) | us | **0.867** | 0.678 (2 errors) |
-| ours-holdout (176), blind for both | nobody | **0.761** | 0.686 |
-| km226 (226) | companion | 0.675 | **0.979** (2 errors) |
+| ours-dev (226) | us | **0.874** | 0.678 (2 errors) |
+| ours-holdout (176), blind for both | nobody | **0.765** | 0.686 |
+| km226 (226) | companion | 0.700 | **0.979** (2 errors) |
 | legacy-dev (333) | companion | **0.800** | 0.652 |
-| legacy-holdout (176) | companion, round 1 | 0.577 | **0.769** |
+| legacy-holdout (176) | companion, round 1 | 0.576 | **0.769** |
 | A-dev (100) | companion; us since its release | **0.817** | 0.410 |
-| A-confirm (60) | companion, round 2 | **0.580** | 0.516 |
+| A-confirm (60) | companion, round 2 | **0.584** | 0.516 |
 | B-dev (30) | companion; us since its release | **0.537** | 0.268 |
 | B-confirm (42) | companion, round 2 | **0.300** | 0.141 |
 | C-dev (36) | companion; us since its release | **0.941** | 0.850 |
@@ -168,7 +168,7 @@ because the rules are written against generic page shapes.
 
 How to read the comparison:
 
-- **ours-holdout** is the cleanest comparison: neither process tuned on it. We lead by 0.07.
+- **ours-holdout** is the cleanest comparison: neither process tuned on it. We lead by 0.08.
 - **C-confirm** is the most informative gap. Its questions are new neighbours of the C-dev fact families. The
   companion handles them with typed handlers per family, which bind a request to complete multi-part answers: two
   offer clocks, a product's tier plus its top tier, start and resume links, every eligibility route. Our C-dev

@@ -45,7 +45,9 @@ The columns show accuracy (the harness `qa_score`). The banks are described in �
 | `f43a470` **companion merged as a specialist** | 0.969 | 0.838 | 0.668 | 0.795 | 0.741 | 0.274 | 0.901 | 0.757 | 0.577 | 0.498 | 0.237 | 0.436 |
 | `ce21637` three more specialist handlers | 0.969 | 0.856 | 0.673 | 0.800 | 0.741 | 0.274 | 0.909 | 0.757 | 0.577 | 0.498 | 0.251 | 0.468 |
 | `e957c52` named features, eyebrow headings | 0.969 | 0.859 | 0.675 | 0.800 | 0.819 | 0.368 | 0.925 | 0.757 | 0.576 | 0.506 | 0.284 | 0.478 |
-| `7cdf25d` **pages' FAQs kept** (current) | 0.969 | 0.867 | 0.675 | 0.800 | 0.817 | 0.537 | 0.941 | 0.761 | 0.577 | 0.580 | 0.300 | 0.478 |
+| `7cdf25d` **pages' FAQs kept** | 0.969 | 0.867 | 0.675 | 0.800 | 0.817 | 0.537 | 0.941 | 0.761 | 0.577 | 0.580 | 0.300 | 0.478 |
+| `196c068` every snapshot, newest band, rate sheet | 0.969 | 0.867 | 0.700 | 0.800 | 0.817 | 0.537 | 0.941 | 0.761 | 0.577 | 0.580 | 0.300 | 0.478 |
+| `0f89a2d` places, zero tiers, wrapped lines (current) | 0.969 | 0.874 | 0.700 | 0.800 | 0.817 | 0.537 | 0.941 | 0.765 | 0.576 | 0.584 | 0.300 | 0.478 |
 
 Commits that only touched tests or docs are left out, as are runs with identical scores (`b17b9fe`, `bdd8e5b`,
 `51ddee3`, `51bbd72`, `f576948`). Raw outputs are kept outside the repository: they contain snapshot text.
@@ -213,6 +215,24 @@ The commits:
 
   Blind A-confirm .506 → .580, B-confirm .284 → .300. A second ranking rule (any section titled with a named phrase
   wins) was measured on the dev banks and dropped.
+- `196c068` came from km226's temporal items:
+  - "across all five snapshots" answers each download;
+  - "most recent" is not "most";
+  - "the newest model-year band" keeps that band;
+  - "was X listed in the rates table" reads the rate sheet itself;
+  - tier wording ("capped at $100,000", "eligible balance band") is not a condition;
+  - "60- and 84-month" are two terms and "48 through 84 months" is a range.
+
+  km226 .675 → .700 (traps 6 → 4); every blind bank equal. The first version of the rate-sheet rule also applied
+  to link questions and cost the stand-in set three source credits; it was narrowed to presence questions.
+- `0f89a2d`:
+  - a state only qualifies a place ("Galena, Illinois" is written "Galena, IL"). This was a regression since the
+    first solution, found by reading an old commit's answer;
+  - a zero-paying tier says where earning starts;
+  - hard-wrapped lines continue their sentence;
+  - smallest/largest redemption limits.
+
+  Two broader versions were measured and narrowed: "amount" as a money word, and "earned" for "earned income".
 
 ### Decisions left to the owner
 

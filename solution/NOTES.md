@@ -114,7 +114,7 @@ Otherwise the system answers with what the site says. Refusals contain no number
 | `eval/public_eval.jsonl` | **0.969** total, 0 stale-trap hits, consistency 1.0, speed 1.0. The only miss, `dup-005`, has no `must_include` and can't be scored without the LLM judge, so 0.969 is the most this file allows. |
 | harness self-test (5 questions + 1 conflict) | 1.0 |
 | `tests/sim_eval.jsonl`, our 330-question stand-in for the hidden set | 0.9628 total (accuracy 0.969, consistency 0.963) |
-| `tests/run_checks.py` | 221/221 |
+| `tests/run_checks.py` | 233/233 |
 
 The stand-in set holds every public question with six rewordings, "as of" questions on rate rows that changed, current values of changed facts, change questions and refusals.
 
@@ -123,7 +123,7 @@ The stand-in set holds every public question with six rewordings, "as of" questi
 | suite | count |
 |---|---|
 | paraphrases (set A tuned on; set B written fresh) | 59 |
-| paired controls: each rule learned from a bank, in words no bank uses, in an equivalent and a minimally changed form | 55 |
+| paired controls: each rule learned from a bank, in words no bank uses, in an equivalent and a minimally changed form | 67 |
 | review cases | 33 |
 | synthetic snapshots | 4 |
 | mutations (one rule, one changed input) | 11 |
@@ -133,10 +133,10 @@ On **eleven agent-written banks** from four authors (about 1,400 items; organize
 
 | bank | dev | blind |
 |---|---:|---:|
-| our independent author (226 / 176) | 0.867 | 0.761 |
-| companion repository, km226 | 0.675 | - |
-| legacy509 (333 / 176) | 0.800 | 0.577 |
-| author A (100 / 60) | 0.817 | 0.580 |
+| our independent author (226 / 176) | 0.874 | 0.765 |
+| companion repository, km226 | 0.700 | - |
+| legacy509 (333 / 176) | 0.800 | 0.576 |
+| author A (100 / 60) | 0.817 | 0.584 |
 | author B (30 / 42) | 0.537 | 0.300 |
 | author C (36 / 36) | 0.941 | 0.478 |
 
