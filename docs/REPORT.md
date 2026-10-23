@@ -11,7 +11,7 @@ and the bank results. It is written for reviewers of this assessment. Iteration 
   specialist for eight kinds of page (§6).
   - Public 0.969, which is the file's ceiling without its LLM judge, with 0 stale-trap hits.
   - Harness self-test 1.0.
-  - Answer p95 0.09 s; ingest 18 s; 36 conflicts listed.
+  - Answer p95 0.09 s; ingest 19 s; 28 conflicts listed.
 - **Independent banks.** Eleven agent-written question banks from four authors and two processes, about 1,400
   items. Accuracy now, against the first solution:
 
