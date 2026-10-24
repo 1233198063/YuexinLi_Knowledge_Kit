@@ -14,7 +14,7 @@ organised and the decisions made are in [PROCESS.md](PROCESS.md). Iteration deta
   how much of the question each answer covers (§6).
   - Public 0.969, which is the file's ceiling without its LLM judge, with 0 stale-trap hits.
   - Harness self-test 1.0.
-  - Answer p95 0.08 s; ingest 18 s; 28 conflicts listed.
+  - Answer p95 about 0.1 s; ingest about 20 s; 28 conflicts listed.
 - **Independent banks.** Eleven agent-written question banks from four authors and two processes, about 1,400
   items. Accuracy now, against the first solution:
 
@@ -314,7 +314,7 @@ every blind bank equal.
   | typed table-column ownership | `RateRow` keeps metrics, tier, term, model years and minimums apart. A column is filled in from another page only when every shared number agrees and that table is in effect. Minimum to open is never minimum to earn |
   | separate source occurrences from shared content | every citation is (URL, snapshot that really held that version); combined answers deduplicate by both |
   | heading-owned blocks for multi-part answers | the asked parts are covered from the same section only; a page's sidebar is cut only up to the next heading |
-  | reuse parsing across snapshots | not done: ingest takes 18 s, well inside the limit |
+  | reuse parsing across snapshots | not done: ingest takes about 20 s, well inside the limit |
   | a model as proposal-only, with deterministic validation | no model is used at all |
 
 ## 7. Limitations and open decisions

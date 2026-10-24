@@ -12,7 +12,7 @@ network, no API keys.
 
 - Python 3.9+ (tested on 3.11), **standard library only**. No API keys, no network calls, no LLM.
 - `answer()` accepts `as_of` as an ISO date or datetime, "2026-05", "May 2026" or "05/31/2026"; an unreadable date means the latest download. An unexpected error is answered with "I don't know" instead of crashing.
-- Ingesting the 5 snapshots takes about 18 s, including the merged companion runtime. Answers take 0.08 s at p95
+- Ingesting the 5 snapshots takes about 20 s, including the merged companion runtime. Answers take about 0.1 s at p95
   on the public file.
 - An impossible date ("2035-02-31", "February 30, 2035") is declined instead of silently answering from the latest download.
 

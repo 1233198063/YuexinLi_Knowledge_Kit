@@ -94,7 +94,7 @@ In total the agents ran for about 24 hours and used about 800 M tokens. Details 
 python harness/run_eval.py --submission solution --eval eval/public_eval.jsonl
 ```
 
-From a fresh clone this scores **0.969**, with 0 stale-trap hits and 0 errors; ingest takes 18 s and answers 0.08 s
+From a fresh clone this scores **0.969**, with 0 stale-trap hits and 0 errors; ingest takes about 20 s and answers about 0.1 s
 at p95.
 
 | | score |
