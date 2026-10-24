@@ -1,5 +1,13 @@
 # NOTES: a Dupaco knowledge system that knows what's true *now*
 
+**In short.** Every snapshot is kept as a dated view of the site. Rate tables become typed rows, and rate
+questions are answered only from those rows: the newest "effective as of" date wins, then page trust (rate sheet >
+product page > PDF > news > landing page > blog > calculator), and a table not yet in effect waits. Everything
+else is answered from the sentences, or the one section, that hold the fact, filtered by the kind of value asked
+for (time, money, phone, date, link, count). Answers give only what was asked. They never show an old number
+unless the question asks about a change, and they say "I don't know" when the site doesn't say. No model, no
+network, no API keys.
+
 ## Requirements
 
 - Python 3.9+ (tested on 3.11), **standard library only**. No API keys, no network calls, no LLM.
@@ -17,8 +25,8 @@
 | 2b | `kb_rates.py` | Turns every rate-table row into a record: product (family, name, qualifiers such as jumbo, business, refinance, Roth), tier (term, balance or loan amount, model years), the numbers (dividend rate, APY, rate, APR), the minimum to open or to earn, and the **"Rates are effective as of" date** under the table. |
 | 2c | `kb_rate_qa.py` | Answers rate questions from those records, never from raw text. |
 | 3 | `kb_search.py` | Answers everything else by finding the sentence that holds the fact. |
-| 7 | `kb_conflicts.py` | Lists the places where the site contradicts itself. |
-| 8 | `kb_companion.py` + `companion/` | The owner's second build of this assessment (its final selected runtime `2d6b8d6e`), merged unchanged. Only for text questions. Its eight specialist handlers replace this system's answer: membership routes and links, mobile wallets, contact routes, the privacy policy's correction procedure, card offers, the card list, rates the site doesn't publish, homebuyer grants (each measured better on dev banks outside the companion's own tuning bank). Its broad handler modules answer open questions only when their answer holds at least as much of what was asked as this system's (a fresh blind set showed them worth adding; on their own they answered FAQ questions with a product's rate table). Any error in it disables it. |
+| 4 | `kb_conflicts.py` | Lists the places where the site contradicts itself. |
+| 5 | `kb_companion.py` + `companion/` | The author's second, independently built solution to this assessment (its final selected runtime `2d6b8d6e`), merged unchanged. Only for text questions. Its eight specialist handlers replace this system's answer: membership routes and links, mobile wallets, contact routes, the privacy policy's correction procedure, card offers, the card list, rates the site doesn't publish, homebuyer grants (each measured better on dev banks outside the companion's own tuning bank). Its broad handler modules answer open questions only when their answer holds at least as much of what was asked as this system's (a fresh blind set showed them worth adding; on their own they answered FAQ questions with a product's rate table). Any error in it disables it. |
 
 ## What counts as "current", in priority order
 

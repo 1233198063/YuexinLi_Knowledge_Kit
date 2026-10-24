@@ -1,3 +1,10 @@
+> **Submission.** The solution is in [`solution/`](solution/) (`solution.py` with `build()`). How it works and how
+> it decides what is current: [`solution/NOTES.md`](solution/NOTES.md). Standard library only, no API keys, no
+> network. Report and evaluation: [`docs/REPORT.md`](docs/REPORT.md).
+>
+> `python harness/run_eval.py --submission solution --eval eval/public_eval.jsonl` scores 0.969 from a fresh clone
+> (ingest about 18 s, answers 0.08 s at p95). The kit's own README follows, unchanged.
+
 # Hackathon: Build a Knowledge System That Knows What's True *Now*
 
 ## The problem in one minute
