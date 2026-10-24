@@ -1,6 +1,6 @@
-# Test suites from the companion repository (knowledge-main)
+# Test suites from the tournament line
 
-Copied unchanged from `github.com/yushengzheng421-cmd/knowledge` (same owner) at the commit in `SOURCE_COMMIT`.
+Copied unchanged from the tournament line's workspace (same owner) at the commit in `SOURCE_COMMIT`.
 Run against this solution with `python tests/knowledge_main/run.py [-v]`.
 
 | Suite (copied) | From | Earlier versions of the same family | How it runs here |
@@ -18,7 +18,7 @@ Run against this solution with `python tests/knowledge_main/run.py [-v]`.
 | request_evidence/test_request_evidence_v2.py (90 developer controls) | rounds/2026-10-22-followup-new-cases/request-evidence-v2/review/precode (commit 9a9a004) | - | diagnostic only, run by hand (below) |
 
 Not copied: provenance-occurrences-v1 and typed-independent-fields-v1 (they read that runtime's internals:
-parent_runtime modules, `contexts`, `cache`), and every `reviewer-only/` heldback set - by that repository's own
+parent_runtime modules, `contexts`, `cache`), and every `reviewer-only/` heldback set - by that line's own
 protocol the coder never reads or runs them; our blind banks play that role here.
 
 `request_evidence` is a strict whole-answer audit: every substantive word of the body must map to the control's

@@ -25,7 +25,7 @@ answers take 0.08 s at p95.
 |---|---|
 | organizer public set, 40 questions | **0.969** total, which is the most this file allows without its LLM judge (`dup-005` has no `must_include`). Consistency 1.0, speed 1.0, 0 stale traps |
 | organizer self-test, 5 questions + 1 conflict | 1.0 |
-| fresh blind set, 172 questions, written last and run once per version | **0.828** total (accuracy 0.875, consistency 0.886, conflict F1 0.57). The companion system alone scores 0.775 |
+| fresh blind set, 172 questions, written last and run once per version | **0.828** total (accuracy 0.875, consistency 0.886, conflict F1 0.57). The tournament line's runtime alone scores 0.775 |
 | our stand-in for the hidden set, 330 questions | 0.963 total (written by us, so optimistic) |
 | eleven agent-written banks, development / blind half | see §4 |
 
@@ -42,21 +42,26 @@ Accuracy on the blind halves, which were never opened, from the first solution t
 ## 2. How I worked: solving, optimising, orchestrating agents
 
 I didn't hand the assessment to one AI session. I organised agents into roles that check each other, and I kept
-the decisions they couldn't make well themselves. The details, including a table of every decision with the
-options and the reason, are in [PROCESS.md](docs/PROCESS.md).
+the decisions they couldn't make well themselves. Models used: Claude Opus 5.5 and 6.1 Sol. The details,
+including a table of every decision with the options and the reason, and the tournament line's rounds, are in
+[PROCESS.md](docs/PROCESS.md).
 
 - **I fixed the objective from the scorer before any code.** A stale or extra value zeroes a question, so the
   system must say only what was asked and decline when the site doesn't say. I wrote down what "current" means
   for this site (effective dates, page trust, expired offers, repeated statements) before tuning began.
-- **I ran two independent lines.**
-  - In this repository, one builder agent worked in explained stages and stopped at every judgment call for my
+- **I ran two independent lines of agents.**
+  - *The staged line:* one builder agent worked in explained stages and stopped at every judgment call for my
     decision.
-  - In my second repository, [knowledge-main], a control plane ran six solver sessions I selected, as a
-    tournament with hand adjudication.
+  - *The tournament line:* a control plane ran six solver sessions I selected, starting from an early copy of the
+    staged line's first solution.
+    - Round 2 was a tournament with 816 responses adjudicated by hand.
+    - Round 3 recorded 27 hardening stages and rejected most of them, some despite a higher score.
+    - A follow-up added new cases, a study of 12 public implementations and a stricter one-shot gate.
+    - It selected one runtime (`2d6b8d6e`). Its last candidate was rejected when public fell from 0.969 to 0.930.
   - Measured on the same banks, the two lines' disagreements showed what each lacked.
 - **I separated builders from judges.**
   - Separate sessions reviewed the code. They found 8 and then 7 defects the builder's own checks had missed.
-  - A reviewer scheduled every 30 minutes watched the other line read-only and published recommendations.
+  - A reviewer scheduled every 30 minutes watched the tournament line read-only and published recommendations.
   - Test authors who never saw any code wrote about 1,400 questions with blind halves. When those had all been
     used, I commissioned a fresh set of 172 and had the comparison written down before it ran.
 - **I optimised by evidence, not by self-report.**
@@ -65,17 +70,15 @@ options and the reason, are in [PROCESS.md](docs/PROCESS.md).
   - When gains stopped transferring to blind banks, I asked for an overfitting defence (paired controls, blind
     banks only as a final gate) rather than more tuning.
   - I rejected score gains that came with a new wrong claim.
-- **I decided what crossed between the lines.** First I took only knowledge-main's method. Once same-bank
-  evidence showed where it was stronger, I merged its final runtime unchanged as a specialist
-  (`solution/companion/`).
+- **I decided what crossed between the lines.** First I took only the tournament line's method. Once same-bank
+  evidence showed where it was stronger, I merged its selected runtime unchanged into the staged line as a
+  specialist (`solution/companion/`).
 - **I made the policy calls,** each measured and kept as a switch: one conflict per precise fact; decline only
   when the site doesn't say; carry a missing page forward; decline true ties and dates before the first snapshot.
 
-| | line 1: this repository | line 2: knowledge-main |
-|---|---|---|
-| models | Claude Opus 5.5 (Claude Code) | 6.1 Sol (TRAE CLI) |
-| time | 2026-10-18 → 10-23, about 15.5 h of active agent sessions | in parallel; 73 commits on 10-22 and 10-23 after earlier rounds |
-| tokens | about 1.7 M output, about 660 M processed in total (mostly cached context) | not recorded here |
+**Time and tokens.** The staged line ran from 2026-10-18 to 10-23: about 15.5 hours of active agent sessions,
+about 1.7 M output tokens and about 660 M tokens processed in total (mostly cached context). The tournament line
+ran in parallel over the same days.
 
 ## 3. How the system decides what's true now
 
@@ -98,7 +101,7 @@ From [NOTES.md](solution/NOTES.md):
 5. Conflicts come from the same typed rows (a product, term and tier printed with different numbers, on two pages
    or across snapshots), from boilerplate whose numbers changed, and from dated figures on undated pages. Each
    conflict names the winner and why.
-6. The merged companion answers text questions only. Its eight specialist handlers (membership routes, wallets,
+6. The tournament line's runtime, merged unchanged, answers text questions only. Its eight specialist handlers (membership routes, wallets,
    contact routes, card offers and others) replace an answer. Its broad modules compete with this system on how
    much of the question each answer covers.
 
@@ -109,13 +112,13 @@ From [NOTES.md](solution/NOTES.md):
 | organizer public, self-test | the kit | 40; 5 + 1 conflict | contract, basic facts, repeats |
 | stand-in set | this repository | 330 | every public question reworded six ways, `as_of`, changed facts, refusals |
 | ours | an independent author session with no access to the code | 226 / 176 | answers quoted from the snapshots; 23 conflict gold entries |
-| km226 | knowledge-main | 226 | its tuning bank, with a 16-topic conflict proxy |
-| legacy509 | knowledge-main, round-1 author | 333 / 176 | original corpus plus synthetic sites: prompt injection, expired offers, removed pages, published-vs-fetched dates |
-| A | knowledge-main, round-2 author | 100 / 60 | qualifiers, thresholds, dated multi-part questions |
-| B | knowledge-main, round-2 author | 30 / 42 | source conditions, negative mutations |
-| C | knowledge-main, round-3 author | 36 / 36 | complete multi-part answers within one fact family |
+| km226 | tournament line | 226 | its tuning bank, with a 16-topic conflict proxy |
+| legacy509 | tournament line, round-1 author | 333 / 176 | original corpus plus synthetic sites: prompt injection, expired offers, removed pages, published-vs-fetched dates |
+| A | tournament line, round-2 author | 100 / 60 | qualifiers, thresholds, dated multi-part questions |
+| B | tournament line, round-2 author | 30 / 42 | source conditions, negative mutations |
+| C | tournament line, round-3 author | 36 / 36 | complete multi-part answers within one fact family |
 | fresh set | a new author session at the end | 172 + conflict gold, all blind | the final claim; comparison registered before any run |
-| mechanism suites | knowledge-main | 35 custody + 73 diagnostic | one rule each on invented pages |
+| mechanism suites | tournament line | 35 custody + 73 diagnostic | one rule each on invented pages |
 | `tests/run_checks.py` | this repository | 254 | paraphrases, paired controls, review cases, synthetic snapshots, mutations, determinism |
 
 The blind halves were run for aggregate scores only; nobody opened their questions, gold or answers. The fresh set
@@ -156,16 +159,16 @@ as totals.
   banks.
 - **Robustness.** Synthetic sites, prompt injection and odd dates don't break it. No exceptions across about
   1,400 bank items. The same question always gets the same answer.
-- **Absorbing a second system by evidence.** The merge with knowledge-main was chosen handler by handler, and the
-  merged system beat the companion alone on a set neither had seen (0.819 against 0.775 before the final step).
+- **Combining the two lines by evidence.** The tournament line's runtime was merged handler by handler. The merged
+  system beat that runtime alone on a set neither had seen (0.819 against 0.775 before the final step).
 - **Discipline.** Blind banks were used once, as a final gate. The fresh-set comparison was registered in advance,
   and rejected iterations are recorded alongside adopted ones ([ITERATIONS.md](docs/ITERATIONS.md)).
 
 ## 7. What didn't go well
 
-- **Complete multi-part answers.** C confirmation is 0.57 here against 0.78 for the companion system. Text facts
+- **Complete multi-part answers.** C confirmation is 0.57 here against 0.78 for the tournament line's runtime alone. Text facts
   worded far from the page still miss, because matching is lexical (no embeddings).
-- **The last refinement.** Restricting the companion's broad modules was tuned on banks this system had already
+- **The last refinement.** Restricting the merged runtime's broad modules was tuned on banks this system had already
   fitted, and it cost about two of 172 fresh questions (0.836 → 0.828). The lesson recorded: judge a merge on data
   neither system was tuned on.
 - **Item-driven fixes transferred poorly** (3% to 33% of their development gain). One session used blind
@@ -189,4 +192,3 @@ harness/, eval/, starter/, snapshots_zip/, snapshots/README.md   the kit as prov
 The snapshots are a real credit union's website, shared for this assessment only. This repository is private,
 and the data must not be redistributed.
 
-[knowledge-main]: https://github.com/yushengzheng421-cmd/knowledge

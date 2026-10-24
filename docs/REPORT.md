@@ -1,8 +1,9 @@
 # Report: a temporal knowledge system for the Dupaco site, and what two independent builds of it taught
 
-This report merges three earlier write-ups: the independent-test results, the study of the companion repository,
-and the bank results. It is written for reviewers of this assessment. How I organised the agents and the decisions I made are in
-[PROCESS.md](PROCESS.md). Iteration details are in
+The owner ran two lines of agents on this assessment. The staged line built this system. The tournament line
+selected its own runtime, called "the companion" here, which was later merged into this system. This report
+compares the two lines and gives the results; it is written for reviewers of this assessment. How the agents were
+organised and the decisions made are in [PROCESS.md](PROCESS.md). Iteration details are in
 [ITERATIONS.md](ITERATIONS.md), the process in [METHODOLOGY.md](METHODOLOGY.md), the overfitting study in
 [GENERALIZATION.md](GENERALIZATION.md), and the system's rules in [../solution/NOTES.md](../solution/NOTES.md).
 
@@ -37,9 +38,9 @@ and the bank results. It is written for reviewers of this assessment. How I orga
     0.686) and it led clearly on C confirmation (0.778 against 0.349).
   - The gaps pointed at specific mechanisms (§5). Taking its winning mechanisms and handlers closed part of the
     C gap: our C confirmation is now 0.569.
-- **The companion repository closed on 2026-10-23** with its runtime `2d6b8d6e` still selected. Its last
+- **The tournament line closed on 2026-10-23** with its runtime `2d6b8d6e` still selected. Its last
   candidate failed its own developer gate and lowered public to 0.930, so it was rejected (§6.1).
-- **Method.** The most valuable things taken from the companion repository were process:
+- **Method.** The most valuable things taken from the tournament line were process:
   - independent test authors with blind holdouts;
   - mechanism suites on made-up data;
   - an anti-overfit gate with paired controls;
@@ -85,7 +86,7 @@ detail.
 
 The answer policy is minimal: only the asked metric, tier, product and date. Refusals contain no numbers.
 
-**The companion system** (selected runtime `2d6b8d6e…`, 14 modules, about 5,200 lines) uses typed handlers per
+**The companion system**, the tournament line's selected runtime (`2d6b8d6e…`, 14 modules, about 5,200 lines), uses typed handlers per
 domain: deposits, loans, services, facts, a conflict engine and evidence objects with raw source spans. It has a
 narrow fee fallback, explicit request parsing (requested and negated metrics, dates, compound requests), and deep
 copies of ingested pages.
@@ -110,7 +111,7 @@ The rules for using these layers:
 
 - **Blind discipline.** Holdout and confirmation banks run for aggregates only. Their questions, answers and
   per-item outputs were never opened.
-- **Anti-overfit gate**, from the companion repository:
+- **Anti-overfit gate**, from the tournament line:
   - Every rule learned from a bank item gets paired controls in words no bank uses. An equivalent form must keep
     the answer, and a minimally changed form must change it.
   - Blind banks are a final gate, not a tuning signal.
@@ -195,7 +196,7 @@ How to read the comparison:
 On 2026-10-23 a new author session, which saw neither system, wrote a question set with conflict gold from the
 snapshots. Four variants and a decision rule were fixed in advance
 ([FRESH-PREREGISTRATION.md](FRESH-PREREGISTRATION.md)). `tests/fresh_once.py` let each source hash run once and
-kept only aggregates. This is the companion repository's one-shot heldback rule.
+kept only aggregates. This is the tournament line's one-shot heldback rule.
 
 | variant | accuracy | total | consistency | conflict F1 |
 |---|---:|---:|---:|---:|
@@ -222,18 +223,18 @@ run by an amendment written before it ran. Its result decides nothing, and the c
   tuned on, where an answer from another system looks worse than it is, because ours fit those banks. On the
   neutral fresh set, more of the companion was better. The refinement also fixed real faults (FAQ questions
   answered with a rate table; nine broken controls), which the fresh set may not contain.
-- **Lesson:** a merge between two systems should be judged on banks neither was tuned on. This is the companion
-  repository's rule for candidates, applied here to a merge.
+- **Lesson:** a merge between two systems should be judged on banks neither was tuned on. This is the tournament
+  line's rule for candidates, applied here to a merge.
 
 ### 5.4 Outside context
 
-The companion repository measured twelve public implementations of this assessment with the same scorer, in 39
+The tournament line measured twelve public implementations of this assessment with the same scorer, in 39
 suites. Their public scores ranged from 0.33 to 0.969. Only one other, besides the companion's runtime, reached
 0.969, which is also this system's score. No configuration beat the companion runtime on public, selftest and an
 author-published 94-question set together. This repository didn't read or run those implementations; the numbers
-are the companion repository's measurements.
+are the tournament line's measurements.
 
-## 6. What was taken from the companion repository, and what wasn't
+## 6. What was taken from the tournament line, and what wasn't
 
 **Absorbed:**
 
@@ -257,10 +258,10 @@ are the companion repository's measurements.
   - Unannounced cycles are unknown.
   - Each observation of a page is cited separately.
 
-**Merged as code** (the owner allowed it on 2026-10-23; both repositories are the owner's).
+**Merged as code** (the owner allowed it on 2026-10-23; both lines are the owner's work).
 
-`solution/companion/` holds its final selected submission (`2d6b8d6e`), byte-identical to the companion
-repository's `submission/` at its close. `solution/kb_companion.py` ingests every snapshot into it as well. Its
+`solution/companion/` holds its final selected submission (`2d6b8d6e`), byte-identical to the tournament
+line's final submission. `solution/kb_companion.py` ingests every snapshot into it as well. Its
 answer is considered only when this system would answer from text, not from its rate tables. Then:
 
 - **Its eight named specialists replace our answer.** Each beat this system on the dev banks outside the
@@ -272,7 +273,7 @@ answer is considered only when this system would answer from text, not from its 
   the HSA rate table for "how many authorized users may be designated?". So they answer only open answer kinds,
   never through its facts module or the general part of its services module. And their answer wins only when it
   holds at least as many of the question's specific, non-product words as ours, ties going to them. This is a light
-  form of the companion repository's own conclusion that a matched trigger, a number or `confident=True` is not
+  form of the tournament line's own conclusion that a matched trigger, a number or `confident=True` is not
   proof that an answer is complete.
 - **Its generic search and its guards are never used.** Any error inside it disables it, and our answer stands.
 
@@ -300,10 +301,10 @@ every blind bank equal.
 - **Its strict request-evidence audit as a target.** We fail it on answer form (section-title prefixes, notes),
   not on values. Satisfying it would mean rewriting every answer template without a measured accuracy benefit.
 - **Its last candidate**, a typed request → claim → completion layer for routing and HELOC (StageA `309afc`). The
-  companion repository rejected it on 2026-10-23: its developer gate failed (61 of 90 controls passed) and public
+  tournament line rejected it on 2026-10-23: its developer gate failed (61 of 90 controls passed) and public
   fell from 0.969 to 0.930 (§6.1).
 
-### 6.1 The companion repository at its close
+### 6.1 The tournament line at its close
 
 - **Final selection: `2d6b8d6e`, unchanged since the merge here.** Its last two days added process, not runtime
   changes.
@@ -357,10 +358,10 @@ python tests/scoreboard.py --label now          # checks, public, selftest, stan
 python tests/run_checks.py                      # paraphrases, controls, review cases, synthetic, mutations, determinism
 python tests/banks.py --blind                   # every bank; blind ones as aggregates only
 python tests/banks.py --blind --submission <other solution folder> --results <dir>   # another system, same banks
-python tests/knowledge_main/run.py              # the companion repository's mechanism suites
+python tests/knowledge_main/run.py              # the tournament line's mechanism suites
 python tests/fresh_once.py --label X --submission solution   # the fresh blind set: once per source hash, refused after
 ```
 
-The banks live in the companion repository (`test-banks/local-authoring`) and in
+The banks live in the tournament line (`test-banks/local-authoring`) and in
 `Desktop/hackathon-independent-eval` for our own author. Per-question outputs of blind banks go to a temporary
 folder that nothing reads.

@@ -5,7 +5,7 @@ Score this solution on every agent-authored question bank, with the unchanged or
 
 The banks were written by independent test-author agents from the snapshots (none is an organizer hidden set):
   ours-*     our test author (C:/Users/<you>/Desktop/hackathon-independent-eval)
-  km226      the 226-question regression bank of the companion repository (knowledge-main)
+  km226      the 226-question regression bank of the tournament line
   legacy-*   its first author's bank (original corpus + self-authored synthetic scenarios)
   A-*, B-*, C-*   its round-2 and round-3 authors
 Development banks print per-bank scores and keep per-question output under results/banks/ for debugging.

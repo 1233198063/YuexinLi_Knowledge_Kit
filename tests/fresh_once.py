@@ -3,7 +3,7 @@ Run a solution on the fresh blind set ONCE, and record only the aggregate.
 
     python tests/fresh_once.py --label B --submission solution
 
-After the companion repository's one-shot heldback discipline: each solution version (the hash of its Python
+After the tournament line's one-shot heldback discipline: each solution version (the hash of its Python
 source) may be scored on a blind set once. A START line is written to a ledger outside this repository before
 the solution is imported; a second run of the same version on the same set is refused, whatever the outcome of
 the first (pass, failure, interruption). Per-question outputs go to a temporary folder that is deleted; only

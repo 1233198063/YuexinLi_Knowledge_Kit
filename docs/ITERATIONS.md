@@ -1,10 +1,11 @@
 # Iteration ledger
 
-Two systems were built for the same online assessment by the same owner:
+The owner ran two lines of agents on the same assessment:
 
-- **this repository**: one rule-based solution, iterated commit by commit;
-- **the companion repository** `knowledge-main` (github.com/yushengzheng421-cmd/knowledge): a multi-agent process
-  in which separate sessions wrote question banks, built competing solutions, and reviewed every candidate.
+- **the staged line** (this repository): one builder agent, one rule-based solution iterated commit by commit,
+  with the owner deciding at every judgment call;
+- **the tournament line**: a control plane in which separate sessions wrote question banks, built competing
+  solutions and reviewed every candidate. Its selected runtime is called "the companion" here.
 
 This file records both iteration routes and every test layer each one used. [REPORT.md](REPORT.md) compares the
 two systems, and [METHODOLOGY.md](METHODOLOGY.md) describes the process that came out of them.
@@ -103,13 +104,13 @@ general rules: there is no code keyed to a question id, URL or expected value.
 
 **Day 2 afternoon. Scoreboard, mechanism suites, mutations.**
 
-- `3f4ac39` added `tests/scoreboard.py`, which runs every layer in one command. It also copied the companion
-  repository's mechanism suites (program status, source planner) into `tests/knowledge_main/`.
-- `e13b455` came from the companion repository's source-order findings. A table that takes effect after the
+- `3f4ac39` added `tests/scoreboard.py`, which runs every layer in one command. It also copied the tournament
+  line's mechanism suites (program status, source planner) into `tests/knowledge_main/`.
+- `e13b455` came from the tournament line's source-order findings. A table that takes effect after the
   download date waits until that date, and equally dated, equally trusted pages that disagree produce no invented
   winner. The commit added `MUTATIONS`: one rule and one changed input per test.
 
-**Day 2 evening. The companion repository published its banks.**
+**Day 2 evening. The tournament line published its banks.**
 
 - `tests/banks.py` was added. It runs every bank with the organizer harness, with each synthetic item on its own
   scenario snapshots, and blind banks run for aggregates only.
@@ -131,10 +132,10 @@ general rules: there is no code keyed to a question id, URL or expected value.
   - Also in this commit: a named product beats a bare family word; "personal and business cards" lists both; a
     balance's tier plus the top tier's threshold; "was X listed" against "does Dupaco offer X"; payment-channel
     fees.
-- `00f6859` absorbed the companion repository's history answers. A question naming two or more days side by side
+- `00f6859` absorbed the tournament line's history answers. A question naming two or more days side by side
   is answered as the site stood on each day. "Regular and jumbo" shows both. "Minimum" counts as an extreme only
   next to a rate word.
-- `2effed2` cover every asked part. Absorbed from the companion repository's finding that one heading-owned block
+- `2effed2` cover every asked part. Absorbed from the tournament line's finding that one heading-owned block
   should answer all of a multi-part question.
   - A text answer that leaves asked words uncovered adds up to two sentences holding them, from its own section,
     or from another section of the same page only when a sentence holds two missing parts.
@@ -143,11 +144,11 @@ general rules: there is no code keyed to a question id, URL or expected value.
   - **Rejected inside this commit:** three tightenings. A table row would answer alone; amount and rate words would
     never count as asked; covering sentences could not be table rows. Each one cost a blind bank about one item,
     so only the narrowest fix was kept: function words such as "not" never count as asked.
-- `7753542` added **paired controls**, after the companion repository's anti-overfit gate. Each rule learned from
+- `7753542` added **paired controls**, after the tournament line's anti-overfit gate. Each rule learned from
   a bank item gets questions in words no bank uses: an equivalent form must keep the answer, and a minimally
   changed form (another actor, qualifier, day or polarity) must change it. The first run exposed four rules bound to
   a bank's wording. They were made general, and every bank score stayed the same.
-- `d3b3c6f` absorbed the companion repository's Parent45e1 custody suites: 35 synthetic tests on made-up banks.
+- `d3b3c6f` absorbed the tournament line's Parent45e1 custody suites: 35 synthetic tests on made-up banks.
   13 passed on arrival and 30 pass now. The general fixes they exposed:
   - effective dates in more wordings;
   - a product's own page beats a copy of its table embedded on another page;
@@ -162,13 +163,13 @@ general rules: there is no code keyed to a question id, URL or expected value.
 
   **Rejected:** a yes/no coverage guard. It declined seven correctly answered dev questions whose wording differs
   from the page's.
-- `5cf624a` kept the companion repository's request-evidence developer controls as a diagnostic (0/90 here,
+- `5cf624a` kept the tournament line's request-evidence developer controls as a diagnostic (0/90 here,
   22/90 for its own runtime).
 
 **Day 3 (2026-10-23). Absorbing what the companion does better, then merging it.**
 
-The owner asked to absorb what the companion does well, then allowed merging its code (both repositories are
-the owner's). Analysis first, on the dev banks only:
+The owner asked to absorb what the companion does well, then allowed merging its code (both lines are the
+owner's work). Analysis first, on the dev banks only:
 
 - Per question, a "best of both" answer would add 0.06 to 0.15 per bank. That is the room there is.
 - A naive merge (use its answer whenever ours declines) went up on some banks and down on others: it answers
@@ -258,7 +259,7 @@ The commits:
     but cut correct enumeration answers on km226 ("list every loan category"), because a list of names doesn't
     repeat the question's words. The rule kept has no threshold. When only a broad module answered, this system
     answers too, and the answer holding more of the question's specific non-product words wins, ties going to the
-    companion. This follows the companion repository's own finding that "a trigger match, a number or confident
+    companion. This follows the tournament line's own finding that "a trigger match, a number or confident
     is not a completion proof".
   - *Owner's decisions of 2026-10-23.* A true tie and a date before the first download are both declined.
   - *The seven issues of the 2026-10-23 code review*, each with a regression test that fails on the previous
@@ -279,7 +280,7 @@ The commits:
 
 ### Decisions left to the owner
 
-The owner decided both policies where the companion repository's tests expected the other choice, on 2026-10-23:
+The owner decided both policies where the tournament line's tests expected the other choice, on 2026-10-23:
 
 1. **A true tie.** Two equally trusted pages, dated the same day, print different numbers. The answer declines:
    the site doesn't say which is current, and showing both prints a wrong value (`KB_TIE=both` restores both
@@ -290,7 +291,7 @@ The owner decided both policies where the companion repository's tests expected 
 A third difference concerns snapshots that are complete replacements (a page missing from one means it was
 removed). This system carries a missing page forward, by the owner's decision of 2026-10-20.
 
-## 2. The companion repository's route
+## 2. The tournament line's route
 
 Its runtime identity is the hash of its 14 runtime modules. Its gates were public 0.9690, selftest 1.0000 and
 disclosed-development Total 0.9704 (226 questions plus a 16-topic conflict proxy, Accuracy 0.9938). Every stage
@@ -335,7 +336,7 @@ previous runtime it was a net complete-correct change of zero.
 - A 32-case admitted bank: 12 OA-source cases and 20 cross-domain transfer cases.
   - The selected runtime completed 0 of the 12 OA cases. The reason was a completeness gap (true snippets that
     don't finish the asked relations), not wrong values.
-  - Its gold isn't in the repository, so it isn't used here.
+  - Its gold isn't published, so it isn't used here.
 - A field-routing pilot (`a703`) and a closure (`5037`) were rejected, each with new P1s.
 - Twelve public implementations of the same assessment were pinned and measured in 39 suites. No configuration
   beat the selected runtime on all three of public, selftest and an author-published 94-question set. The top

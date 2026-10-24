@@ -140,7 +140,7 @@ On **eleven agent-written banks** from four authors (about 1,400 items; organize
 | bank | dev | blind |
 |---|---:|---:|
 | our independent author (226 / 176) | 0.874 | 0.785 |
-| companion repository, km226 | 0.744 | - |
+| tournament line, km226 | 0.744 | - |
 | legacy509 (333 / 176) | 0.865 | 0.628 |
 | author A (100 / 60) | 0.817 | 0.584 |
 | author B (30 / 42) | 0.542 | 0.300 |
@@ -149,7 +149,7 @@ On **eleven agent-written banks** from four authors (about 1,400 items; organize
 A **fresh blind set** written last (172 questions, one run per version, aggregates only): 0.828 total
 (accuracy 0.875, consistency 0.886, conflict F1 0.57), against 0.775 for the companion runtime alone.
 
-The companion repository's Parent45e1 mechanism suites (35 tests on made-up banks) pass 33. The two misses are
+The tournament line's Parent45e1 mechanism suites (35 tests on made-up banks) pass 33. The two misses are
 one wording requirement and one semantic gap.
 
 How these numbers moved commit by commit, what was tried and rejected, a same-bank comparison with the companion system, the method, and what transfers to unseen questions are in `docs/ITERATIONS.md`, `docs/REPORT.md`, `docs/METHODOLOGY.md` and `docs/GENERALIZATION.md`.

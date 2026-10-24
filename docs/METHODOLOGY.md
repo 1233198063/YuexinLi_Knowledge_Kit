@@ -1,7 +1,7 @@
 # Methodology: how to build a "what is true now" knowledge system, and how to know it works
 
-This is the process that came out of two independent builds of the same assessment (this repository and the
-companion `knowledge-main`). It's written so it could be followed again on another site or another snapshot set.
+This is the process that came out of two independent lines of agents on the same assessment (the staged line in
+this repository and the tournament line). It's written so it could be followed again on another site or another snapshot set.
 The evidence behind each point is in [REPORT.md](REPORT.md) and [ITERATIONS.md](ITERATIONS.md).
 
 ## 1. Read the scorer before writing code
@@ -87,7 +87,7 @@ different ways:
    - A separate session that never sees the code writes questions with answers quoted from the snapshots.
    - Split each bank into dev, readable question by question, and holdout or confirmation, which runs for
      aggregates only and is never opened.
-   - Use several authors: the companion repository's five authors disagreed with each other in useful ways.
+   - Use several authors: the tournament line's five authors disagreed with each other in useful ways.
 4. **Synthetic scenarios**: made-up snapshots for situations the real data lacks, such as a removed page, a
    future-effective table, a true tie, an expired offer, or prompt injection in page text.
 5. **Mechanism suites on invented banks**: one rule per test, independent of the real site's wording.

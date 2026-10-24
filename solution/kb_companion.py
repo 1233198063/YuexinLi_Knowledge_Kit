@@ -1,6 +1,6 @@
 """
-The companion runtime (companion/, the owner's second build of this assessment, merged unchanged from
-github.com/yushengzheng421-cmd/knowledge at the commit in companion/SOURCE_COMMIT) as a specialist.
+The companion runtime (companion/: the selected runtime of the owner's second, tournament line of agents on
+this assessment, merged unchanged at the commit in companion/SOURCE_COMMIT) as a specialist.
 
 Its typed handlers (deposits, loans, services, facts, features, product details) answer text questions about
 pages it knows well: membership routes, wallets, contact routes, the correction policy, card offers and lists,
