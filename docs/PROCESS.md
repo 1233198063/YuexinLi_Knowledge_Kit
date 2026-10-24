@@ -69,6 +69,58 @@ wasn't recorded here.
 Why two lines: one long session drifts towards its own blind spots and grades itself with its own tests. Two
 independent lines measured on the same banks show where each one is weak.
 
+### 1.1 How the agents talked to each other
+
+Most of the work happened in hand-offs between agents, through files each role wrote and the next one read. A
+review report, a question bank, a frozen candidate or a verdict is the message. I set what each hand-off must
+contain and who may read it.
+
+| hand-off | what is handed over | rule |
+|---|---|---|
+| question authors → solvers | the development half of each bank: questions, gold answers, sources quoted from the snapshots, a validator | authors never see any code; solvers never see a blind half |
+| harness → solvers | per-question results on development halves; aggregate scores only on blind halves | a change that drops any blind bank by more than one item is rejected |
+| reviewers → solvers | a report per round: each defect with severity (P1/P2), file and line, a real question that reproduces it, a minimally changed control, and a suggested fix order; sometimes a probe script on made-up snapshots | every finding becomes a fix plus a regression test that fails on the previous commit |
+| solvers → stage reviewers | a frozen candidate: copied source, source hash, test hashes | nobody evaluates a live workspace |
+| stage reviewers → tournament maintainer | APPROVE or REJECT for that exact hash, with P0/P1/P2 findings | a rejected hash is archived; it is never patched against the same held set |
+| scheduled reviewer → tournament maintainer | every 30 minutes: re-measured scores under the same protocol and concrete recommendations | read-only; it never edits what it watches |
+| staged line ↔ tournament line | the first solution one way; methods, test suites and finally the selected runtime the other way | taken only when evidence on the same banks supports it |
+
+**How the reviewer coordinated the solvers.** The coordinating reviewer did three things:
+
+- it disclosed part of the questions to the solvers and kept the rest hidden, so the rest only ever produced a
+  score;
+- it gave each solver a different hint about where to improve: consistency, conflicts, dates, multi-part
+  answers, narrative completeness, evidence and uncertainty;
+- it pulled the results together on one protocol, kept the parts that held up and rejected the rest (§4).
+
+**Loop 1: reviewer → solver on the staged line.** The second review reported seven defects. Each came with the
+question that reproduces it and a control that shows the boundary.
+
+- An excluded product decided the product. "..., not Bright Savings?" returned Bright Savings' 2.25%; without
+  that phrase the answer was right.
+- Two products in one question were merged, and the auto loan's 60-month term was read as a certificate term.
+- A promo column was filled in from a table not yet in effect. This one came with a probe script on made-up
+  snapshots.
+
+The solver fixed each defect and added it as a paired control or a mutation test. It ran the new tests on the
+previous commit, where all eight failed, before committing.
+
+**Loop 2: stage reviewer → solver on the tournament line.** The first formatting stage raised the replay score to
+0.977. The stage reviewer found 4 P1 and 1 P2: aliases that earned literal credit by changing meaning. The stage
+was rejected. The next stage narrowed the aliases and scored 0.972, and the review still found 2 P1 and 1 P2. Each
+later cycle closed one gap and the reviewer found the next. The sixth was safe but brought no gain, so none was
+selected.
+
+**Loop 3: research → maintainer → gate.** The study of public implementations and the scheduled reviewer both
+recommended answering routing-number and HELOC questions by the field asked. The maintainer built that as the
+last candidate. The v2b gate failed it (61 of 90 controls), and public fell from 0.969 to 0.930. It was rejected
+without a patch, and its held set was never opened.
+
+**Loop 4: question authors → solvers, with a held-back half.** The independent author handed over 226 development
+questions; the solver read every miss among them. The 176 holdout questions went only to the harness, which
+returned a total. The fresh-set author's 172 questions went to a runner that logs each version and refuses a
+second run.
+
 ## 2. My decisions, and the trade-offs behind them
 
 | when | decision point | options the agents put in front of me | what I chose | why |

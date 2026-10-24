@@ -4,35 +4,59 @@ The system answers members' questions from five dated snapshots of a credit unio
 the value current on the date asked, the right tier and a source. When the site doesn't say, the answer is "I
 don't know". The system also lists where the site contradicts itself.
 
-## 1. How I used agents to build it
+## 1. How I orchestrated the agents
 
-I didn't hand the task to one AI session. I organised agents (Claude Opus 5.5 and 6.1 Sol) into roles that check
-each other, and I kept the decisions for myself.
+I built it by orchestrating AI agents (Claude Opus 5.5 and 6.1 Sol). I gave each agent a role, set what it may see
+and what it must hand over, and kept the decisions. Most of the work then happened in exchanges between agents:
 
-| role | what the agents did | what I did |
-|---|---|---|
-| solvers | **Staged line:** one builder worked in explained stages and stopped at every judgment call. **Tournament line:** six solver sessions competed over three rounds; the 27 hardening stages of round 3 were mostly rejected | decided each judgment call; picked what to combine from the tournament; merged its best runtime into the staged line, handler by handler, by measured evidence |
-| reviewers | separate sessions reviewed every round of code (8, then 7 defects the builder had missed); a reviewer scheduled every 30 minutes watched the tournament line | required a fix plus a regression test for every finding; carried findings between the two lines |
-| test authors | sessions that never saw any code wrote about 1,400 questions with blind halves; a fresh set of 172 came last | used blind halves only as a final gate; had the fresh-set comparison written down before it ran |
+```
+                         me: roles, rules, decisions
+                                     |
+                         reviewer agent (coordinator)
+    discloses part of the questions, gives each solver a different hint, pulls their ideas together
+                                     |
+      +------------------+-----------+-----------+----------------------+
+      |                  |                       |                      |
+   solver A          solver B       ...      solver F        staged-line builder
+  (own hint)        (own hint)              (own hint)     (stops at each judgment call for me)
+      |                  |                       |                      |
+      +------- reviewer findings back to each solver; fixes come back with a test -------+
+                                     |
+       question-author agents: some questions disclosed, the rest only ever scored
+```
 
-The decisions I kept:
+- **The reviewer disclosed part of the questions.** Solvers saw a development part and could study every miss in
+  it. The rest stayed hidden and only produced a score, so no solver could tune to it.
+- **Different solvers got different hints.** Each was pointed at a different weakness: consistency, conflicts,
+  dates, multi-part answers, narrative completeness, evidence and uncertainty. They improved the same problem
+  from different sides.
+- **Findings went back and forth.** A reviewer audited each solver's frozen work and reported every defect with a
+  question that reproduces it. The solver fixed it and returned a test proving the fix.
+- **The reviewer pulled the ideas together.** It compared the solvers on one protocol, kept the parts that held
+  up, and rejected the rest, including changes that raised the score but added a wrong claim.
+- **Question-author agents never saw any code.** They wrote about 1,400 questions from the snapshots. A fresh set
+  of 172 came last.
 
-- **What "current" means.** Newest effective date first, then page trust, and an expired offer never answers.
-- **When to say "I don't know".** Only when the site truly doesn't say. True ties and dates before the first
-  snapshot are declined.
-- **Whose tests to trust.** Independent authors, not the builder's own stand-in set: that set showed 0.96 while
-  the independent bank showed 0.75.
-- **What to merge.** First only the tournament line's method, then its runtime, once same-bank evidence showed
-  where it was stronger.
-- **What to reject.** Any score gain that came with a new wrong claim, and any rule that only worked in one bank's
-  wording.
-- **When to stop.** Both lines closed when the remaining gains were small.
+**One loop, end to end.** A reviewer agent reported that "What is the APY for a regular 6-month certificate, not
+Bright Savings?" returned Bright Savings' 2.25%. The report gave the code line and a control without "not Bright
+Savings". The builder fixed it, added both questions as paired controls, and showed the new test failing on the
+previous commit before committing.
 
-The staged line ran from 2026-10-18 to 10-23: about 15.5 hours of active agent sessions and about 1.7 M output
-tokens. The tournament line ran in parallel. Every decision, with the options and the reasons, and the tournament
-line round by round, are in [docs/PROCESS.md](docs/PROCESS.md).
+**My part.** I chose the roles and these rules, decided what each round disclosed, and carried findings between
+agents. I also made the calls agents shouldn't make alone:
 
-## 2. Performance
+- what "current" means;
+- when to say "I don't know";
+- whose tests to trust;
+- what to merge, and what to reject;
+- when to stop.
+
+The staged line took about 15.5 hours of active agent sessions and about 1.7 M output tokens (2026-10-18 to
+10-23). The other agents ran in parallel. Details are in [docs/PROCESS.md](docs/PROCESS.md).
+
+## 2. What the agents produced
+
+### Performance
 
 ```
 python harness/run_eval.py --submission solution --eval eval/public_eval.jsonl
@@ -44,18 +68,18 @@ at p95.
 | | score |
 |---|---|
 | public set, 40 questions | **0.969**, the most this file allows without its LLM judge |
-| fresh blind set, 172 questions written last, one run per version | **0.828** total (the best tournament runtime alone: 0.775) |
+| fresh blind set, 172 questions written last, one run per version | **0.828** total (the best competing solver's runtime alone: 0.775) |
 | blind holdouts (never opened), first solution → now | ours 0.642 → **0.785**; legacy509 0.189 → **0.628**; author C 0.266 → **0.569** |
 
 **Went well:** tiers, stale-value traps, `as_of` questions and refusals are near-perfect, and the blind gains are
 real. The system is robust to synthetic sites and prompt injection.
 
-**Didn't:** complete multi-part answers (author C's blind set: 0.57, against 0.78 for the best tournament runtime
-alone), wording far from the page (matching is lexical), and conflict recall on unseen gold (F1 0.16).
+**Didn't:** complete multi-part answers (author C's blind set: 0.57, against 0.78 for the best competing solver's
+runtime alone), wording far from the page (matching is lexical), and conflict recall on unseen gold (F1 0.16).
 
 All scores, the question banks and performance by kind of question are in [docs/RESULTS.md](docs/RESULTS.md).
 
-## 3. Approach
+### How the system works
 
 The scorer zeroes a question for any stale or extra value. So the system says only what was asked, and "I don't
 know" when the site doesn't say. It uses the standard library only, with no API keys and no network.
@@ -67,8 +91,8 @@ know" when the site doesn't say. It uses the standard library only, with no API 
    PDF > news > blog > calculator). A table not yet in effect waits.
 3. Other facts come from the sentence or section that holds them, filtered by the kind of value asked for.
 4. Conflicts come from the same rows and from boilerplate whose numbers changed. Each names its winner and why.
-5. The tournament line's best runtime is merged unchanged as a specialist for the text questions it answers
-   better.
+5. The best competing solver's runtime is merged unchanged into the staged line, as a specialist for the text
+   questions it answers better.
 
 Details: [solution/NOTES.md](solution/NOTES.md). Full report and per-commit ledger:
 [docs/REPORT.md](docs/REPORT.md), [docs/ITERATIONS.md](docs/ITERATIONS.md).
