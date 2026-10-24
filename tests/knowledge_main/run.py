@@ -1,5 +1,5 @@
 """
-Run the mechanism test suites written in the companion repository (knowledge-main) against this solution.
+Run the tournament line's mechanism test suites against this solution.
 
     python tests/knowledge_main/run.py [-v]
 

@@ -1,6 +1,6 @@
 # Fresh blind set: pre-registered comparison (written before any result was seen)
 
-Set: C:\Users\19257\Desktop\hackathon-fresh-eval (independent author session, 2026-10-23). Blind: only the
+Set: `Desktop/hackathon-fresh-eval`, outside the repository (independent author session, 2026-10-23). Blind: only the
 harness aggregates are read; questions, gold and per-question outputs are never opened.
 
 Each variant is run once, with the unchanged organizer harness, on fresh_final.jsonl with conflicts.json:

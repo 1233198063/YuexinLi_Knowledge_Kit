@@ -7,8 +7,9 @@ don't know". The system also lists where the site contradicts itself.
 ## 1. How I orchestrated the agents
 
 I built it by orchestrating AI agents (Claude Opus 5.5 and 6.1 Sol). I gave each agent a role, set what it may see
-and what it must hand over, and kept the decisions. Most of the work happened in exchanges between agents, with a
-reviewer agent at the centre.
+and what it must hand over, and kept the decisions. Two lines ran in parallel. In the staged line, one builder agent
+stopped at each judgment call for me. In the other, six solver agents competed. Most of the work happened in
+exchanges between agents, with a reviewer agent at the centre.
 
 ### The architecture
 
@@ -100,7 +101,7 @@ at p95.
 |---|---|
 | public set, 40 questions | **0.969**, the most this file allows without its LLM judge |
 | fresh blind set, 172 questions written last, one run per version | **0.828** total (the best competing solver's runtime alone: 0.775) |
-| blind holdouts (never opened), first solution → now | ours 0.642 → **0.785**; legacy509 0.189 → **0.628**; author C 0.266 → **0.569** |
+| blind holdouts (never opened), first solution → now | independent author 0.642 → **0.785**; legacy509 0.189 → **0.628**; author C 0.266 → **0.569** |
 
 **Went well:** tiers, stale-value traps, `as_of` questions and refusals are near-perfect, and the blind gains are
 real. The system is robust to synthetic sites and prompt injection.

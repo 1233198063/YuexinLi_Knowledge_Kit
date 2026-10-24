@@ -93,7 +93,7 @@ Otherwise the system answers with what the site says. Refusals contain no number
   - picks the page by the rules above;
   - inside that page, picks the sentence holding the most and rarest question words;
   - answers with that sentence plus one or two after it, or its whole bullet list — never the whole page, because every extra sentence is a chance to repeat an old number.
-- **Defined terms are expanded:** "[charter area](map.jpg)" gets the county list the site gives elsewhere.
+- **Defined terms are expanded:** `[charter area](map.jpg)` gets the county list the site gives elsewhere.
 - **Hours with no branch named:** the site gives hours per branch, so the answer lists the distinct schedules and asks which branch.
 
 ## conflicts()
