@@ -141,7 +141,7 @@ second run.
 | 10-23 | when to stop | keep iterating | close both lines, stop the scheduled reviewer, write the final report | the remaining gains were small and the evidence budget was spent |
 
 Things I kept for myself throughout: every policy decision above, every merge, the handling of the data (a
-private repository, nothing redistributed), and when blind data could be used.
+snapshots kept out of the repository and its history), and when blind data could be used.
 
 ## 3. Several agents solving independently
 

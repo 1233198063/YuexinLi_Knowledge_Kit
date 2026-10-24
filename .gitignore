@@ -4,3 +4,6 @@ __pycache__/
 .DS_Store
 .env
 snapshots/0*/
+
+# The supplied website snapshots are not redistributed: copy the kit's snapshots_zip/ here to run locally
+snapshots_zip/

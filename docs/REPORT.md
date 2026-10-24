@@ -162,7 +162,7 @@ Both were run with the unchanged harness, the same snapshots and the same synthe
 | C-dev (36) | companion; us since its release | **0.941** | 0.850 |
 | C-confirm (36), not shown to its solver | neither directly | 0.569 | **0.778** |
 
-"This system" includes the merged companion handlers. Before the merge (`2500e91`) it scored C-dev 0.840 and
+"This system" includes the merged companion handlers. Before the merge (`62aa9cf`) it scored C-dev 0.840 and
 C-confirm 0.369.
 
 The split between original-corpus and synthetic items:
@@ -271,7 +271,7 @@ answer is considered only when this system would answer from text, not from its 
 
 Effect, with blind banks run once at each step:
 
-| bank | before the merge `2500e91` | eight specialists `ce21637` | before the last step `2980092` | broad modules, weighed `28e3d69` |
+| bank | before the merge `62aa9cf` | eight specialists `700c18f` | before the last step `6bb321d` | broad modules, weighed `1c0437f` |
 |---|---:|---:|---:|---:|
 | C-confirm | 0.369 | 0.468 | 0.478 | **0.569** |
 | ours-holdout | 0.750 | 0.757 | 0.765 | **0.785** |
@@ -340,8 +340,8 @@ every blind bank equal.
   history answers citing only the current download. All seven are fixed. Each has a regression test that fails
   on the previous commit and passes now, beside a minimally changed counterpart that passes on both. More such
   combinations surely remain; the lesson is that checks written by the coder share the coder's blind spots.
-- **Data.** The snapshots are for this assessment only. The repository tracks the kit's zips and assignment PDF.
-  They must not be pushed anywhere public, and the owner decides whether they stay tracked.
+- **Data.** The snapshots are for this assessment only. They are not in this repository, nor in its history;
+  copy the kit's `snapshots_zip/` into the root to run anything here.
 
 ## 8. Reproducing
 

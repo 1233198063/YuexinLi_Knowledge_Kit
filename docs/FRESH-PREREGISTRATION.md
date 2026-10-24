@@ -4,8 +4,8 @@ Set: `Desktop/hackathon-fresh-eval`, outside the repository (independent author 
 harness aggregates are read; questions, gold and per-question outputs are never opened.
 
 Each variant is run once, with the unchanged organizer harness, on fresh_final.jsonl with conflicts.json:
-- A  this system at the start of the session (de7c4f2)
-- B  this system now (c1812e0): the companion merged through the eight evidence-chosen handlers
+- A  this system at the start of the session (4a7f6d2)
+- B  this system now (79bbf5f): the companion merged through the eight evidence-chosen handlers
 - C  the companion runtime alone (the tournament line's selected runtime, 2d6b8d6e)
 - D  B, but every companion handler module is used for text questions (no evidence filter)
 

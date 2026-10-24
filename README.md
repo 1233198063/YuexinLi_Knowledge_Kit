@@ -90,12 +90,15 @@ In total the agents ran for about 24 hours and used about 800 M tokens. Details 
 
 ### Performance
 
+The supplied website snapshots are not in this repository. To run, copy the kit's `snapshots_zip/` folder into
+the repository root, then:
+
 ```
 python harness/run_eval.py --submission solution --eval eval/public_eval.jsonl
 ```
 
-From a fresh clone this scores **0.969**, with 0 stale-trap hits and 0 errors; ingest takes about 20 s and answers about 0.1 s
-at p95.
+From a fresh clone plus the kit's snapshots, this scores **0.969**, with 0 stale-trap hits and 0 errors. Ingest
+takes about 20 s, and answers take about 0.1 s at p95.
 
 | | score |
 |---|---|
@@ -129,6 +132,6 @@ know" when the site doesn't say. It uses the standard library only, with no API 
 Details: [solution/NOTES.md](solution/NOTES.md). Full report and per-commit ledger:
 [docs/REPORT.md](docs/REPORT.md), [docs/ITERATIONS.md](docs/ITERATIONS.md).
 
-`harness/`, `eval/`, `starter/` and `snapshots_zip/` are the kit as provided, unchanged
-([kit README](docs/KIT-README.md)). The snapshots are a real credit union's website, shared for this assessment
-only. This repository is private, and the data is not redistributed.
+`harness/`, `eval/` and `starter/` are the kit as provided, unchanged ([kit README](docs/KIT-README.md)). The
+snapshots are a real credit union's website, shared for this assessment only. They are not included here, and
+their history was removed from the repository; there are no API keys.

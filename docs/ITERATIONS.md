@@ -27,46 +27,46 @@ The columns show accuracy (the harness `qa_score`). The banks are described in �
 
 | commit | public | ours-dev | km226 | legacy-dev | A-dev | B-dev | C-dev | ours-holdout | legacy-holdout | A-confirm | B-confirm | C-confirm |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| `601b96c` first solution | 0.957 | 0.614 | 0.399 | 0.474 | 0.721 | 0.122 | 0.407 | 0.642 | 0.189 | 0.502 | 0.170 | 0.266 |
-| `718dc24` code-review fixes | 0.969 | 0.679 | 0.413 | 0.481 | 0.678 | 0.193 | 0.458 | 0.665 | 0.191 | 0.508 | 0.185 | 0.270 |
-| `921fb15` decline unlisted fees | 0.969 | 0.678 | 0.408 | 0.468 | 0.681 | 0.193 | 0.458 | 0.667 | 0.184 | 0.500 | 0.185 | **0.215** |
-| `740de90` end of day 1 | 0.969 | 0.678 | 0.408 | 0.468 | 0.681 | 0.193 | 0.458 | 0.679 | 0.184 | 0.500 | 0.185 | 0.215 |
-| `27b435a` independent-dev fixes | 0.969 | 0.756 | 0.417 | 0.462 | **0.641** | 0.207 | 0.482 | 0.705 | 0.186 | 0.500 | 0.185 | **0.199** |
-| `4d79bb6` decline the unpublished | 0.969 | 0.790 | 0.407 | 0.434 | 0.685 | 0.179 | 0.482 | 0.703 | 0.184 | 0.472 | 0.178 | 0.261 |
-| `3e30fa4` branch hours, abbreviations | 0.969 | 0.800 | 0.410 | 0.437 | 0.685 | 0.174 | 0.482 | 0.711 | 0.184 | 0.472 | 0.171 | 0.261 |
-| `e13b455` future-effective, ties | 0.969 | 0.800 | 0.410 | 0.434 | 0.685 | 0.174 | 0.482 | 0.711 | 0.184 | 0.472 | 0.171 | 0.261 |
-| `4aebe69` **asked metric and tier only** | 0.969 | 0.809 | 0.447 | **0.711** | 0.695 | 0.230 | 0.510 | 0.723 | **0.550** | 0.472 | 0.198 | 0.265 |
-| `de7c4f2` words, misspellings, determinism | 0.969 | 0.809 | 0.473 | 0.714 | 0.695 | 0.230 | 0.502 | 0.723 | 0.550 | 0.472 | 0.198 | 0.265 |
-| `239d78c` typed keys, named products | 0.969 | 0.816 | 0.550 | 0.767 | 0.724 | 0.241 | 0.632 | 0.751 | 0.557 | 0.494 | 0.198 | 0.284 |
-| `00f6859` each named day | 0.969 | 0.816 | 0.573 | 0.771 | 0.724 | 0.241 | 0.738 | 0.754 | 0.557 | 0.494 | 0.198 | 0.284 |
-| `2effed2` **cover every asked part** | 0.969 | 0.827 | 0.594 | 0.775 | 0.741 | 0.274 | 0.824 | 0.754 | 0.566 | 0.498 | 0.244 | **0.349** |
-| `7753542` paired controls | 0.969 | 0.827 | 0.594 | 0.775 | 0.741 | 0.274 | 0.824 | 0.754 | 0.566 | 0.498 | 0.244 | 0.349 |
-| `d3b3c6f` custody-suite fixes | 0.969 | 0.827 | 0.595 | 0.775 | 0.741 | 0.274 | 0.840 | 0.750 | 0.570 | 0.498 | 0.237 | 0.349 |
-| `2500e91` its winning mechanisms, reimplemented | 0.969 | 0.828 | 0.619 | 0.792 | 0.741 | 0.274 | 0.840 | 0.750 | 0.570 | 0.498 | 0.237 | 0.369 |
-| `f43a470` **companion merged as a specialist** | 0.969 | 0.838 | 0.668 | 0.795 | 0.741 | 0.274 | 0.901 | 0.757 | 0.577 | 0.498 | 0.237 | 0.436 |
-| `ce21637` three more specialist handlers | 0.969 | 0.856 | 0.673 | 0.800 | 0.741 | 0.274 | 0.909 | 0.757 | 0.577 | 0.498 | 0.251 | 0.468 |
-| `e957c52` named features, eyebrow headings | 0.969 | 0.859 | 0.675 | 0.800 | 0.819 | 0.368 | 0.925 | 0.757 | 0.576 | 0.506 | 0.284 | 0.478 |
-| `7cdf25d` **pages' FAQs kept** | 0.969 | 0.867 | 0.675 | 0.800 | 0.817 | 0.537 | 0.941 | 0.761 | 0.577 | 0.580 | 0.300 | 0.478 |
-| `196c068` every snapshot, newest band, rate sheet | 0.969 | 0.867 | 0.700 | 0.800 | 0.817 | 0.537 | 0.941 | 0.761 | 0.577 | 0.580 | 0.300 | 0.478 |
-| `0f89a2d` places, zero tiers, wrapped lines | 0.969 | 0.874 | 0.700 | 0.800 | 0.817 | 0.537 | 0.941 | 0.765 | 0.576 | 0.584 | 0.300 | 0.478 |
-| `0f16e25` the asked metric next to "High-Yield" | 0.969 | 0.874 | 0.700 | 0.812 | 0.817 | 0.537 | 0.941 | 0.765 | 0.576 | 0.584 | 0.300 | 0.478 |
-| `2980092` minimum to open, exclusions | 0.969 | 0.874 | 0.701 | 0.855 | 0.817 | 0.537 | 0.941 | 0.765 | 0.576 | 0.584 | 0.300 | 0.478 |
-| `28e3d69` **broad companion modules, weighed; review fixes** (final) | 0.969 | 0.874 | 0.744 | 0.865 | 0.817 | 0.542 | 0.941 | **0.785** | **0.628** | 0.584 | 0.300 | **0.569** |
+| `221c276` first solution | 0.957 | 0.614 | 0.399 | 0.474 | 0.721 | 0.122 | 0.407 | 0.642 | 0.189 | 0.502 | 0.170 | 0.266 |
+| `6ce0b07` code-review fixes | 0.969 | 0.679 | 0.413 | 0.481 | 0.678 | 0.193 | 0.458 | 0.665 | 0.191 | 0.508 | 0.185 | 0.270 |
+| `0bf2466` decline unlisted fees | 0.969 | 0.678 | 0.408 | 0.468 | 0.681 | 0.193 | 0.458 | 0.667 | 0.184 | 0.500 | 0.185 | **0.215** |
+| `695f149` end of day 1 | 0.969 | 0.678 | 0.408 | 0.468 | 0.681 | 0.193 | 0.458 | 0.679 | 0.184 | 0.500 | 0.185 | 0.215 |
+| `8d972e9` independent-dev fixes | 0.969 | 0.756 | 0.417 | 0.462 | **0.641** | 0.207 | 0.482 | 0.705 | 0.186 | 0.500 | 0.185 | **0.199** |
+| `93cf804` decline the unpublished | 0.969 | 0.790 | 0.407 | 0.434 | 0.685 | 0.179 | 0.482 | 0.703 | 0.184 | 0.472 | 0.178 | 0.261 |
+| `61c14d6` branch hours, abbreviations | 0.969 | 0.800 | 0.410 | 0.437 | 0.685 | 0.174 | 0.482 | 0.711 | 0.184 | 0.472 | 0.171 | 0.261 |
+| `378807e` future-effective, ties | 0.969 | 0.800 | 0.410 | 0.434 | 0.685 | 0.174 | 0.482 | 0.711 | 0.184 | 0.472 | 0.171 | 0.261 |
+| `13d2310` **asked metric and tier only** | 0.969 | 0.809 | 0.447 | **0.711** | 0.695 | 0.230 | 0.510 | 0.723 | **0.550** | 0.472 | 0.198 | 0.265 |
+| `4a7f6d2` words, misspellings, determinism | 0.969 | 0.809 | 0.473 | 0.714 | 0.695 | 0.230 | 0.502 | 0.723 | 0.550 | 0.472 | 0.198 | 0.265 |
+| `357d758` typed keys, named products | 0.969 | 0.816 | 0.550 | 0.767 | 0.724 | 0.241 | 0.632 | 0.751 | 0.557 | 0.494 | 0.198 | 0.284 |
+| `f372dea` each named day | 0.969 | 0.816 | 0.573 | 0.771 | 0.724 | 0.241 | 0.738 | 0.754 | 0.557 | 0.494 | 0.198 | 0.284 |
+| `9d92679` **cover every asked part** | 0.969 | 0.827 | 0.594 | 0.775 | 0.741 | 0.274 | 0.824 | 0.754 | 0.566 | 0.498 | 0.244 | **0.349** |
+| `bae67ac` paired controls | 0.969 | 0.827 | 0.594 | 0.775 | 0.741 | 0.274 | 0.824 | 0.754 | 0.566 | 0.498 | 0.244 | 0.349 |
+| `061bc84` custody-suite fixes | 0.969 | 0.827 | 0.595 | 0.775 | 0.741 | 0.274 | 0.840 | 0.750 | 0.570 | 0.498 | 0.237 | 0.349 |
+| `62aa9cf` its winning mechanisms, reimplemented | 0.969 | 0.828 | 0.619 | 0.792 | 0.741 | 0.274 | 0.840 | 0.750 | 0.570 | 0.498 | 0.237 | 0.369 |
+| `848491e` **companion merged as a specialist** | 0.969 | 0.838 | 0.668 | 0.795 | 0.741 | 0.274 | 0.901 | 0.757 | 0.577 | 0.498 | 0.237 | 0.436 |
+| `700c18f` three more specialist handlers | 0.969 | 0.856 | 0.673 | 0.800 | 0.741 | 0.274 | 0.909 | 0.757 | 0.577 | 0.498 | 0.251 | 0.468 |
+| `ea418bc` named features, eyebrow headings | 0.969 | 0.859 | 0.675 | 0.800 | 0.819 | 0.368 | 0.925 | 0.757 | 0.576 | 0.506 | 0.284 | 0.478 |
+| `f32e35c` **pages' FAQs kept** | 0.969 | 0.867 | 0.675 | 0.800 | 0.817 | 0.537 | 0.941 | 0.761 | 0.577 | 0.580 | 0.300 | 0.478 |
+| `d89ad9c` every snapshot, newest band, rate sheet | 0.969 | 0.867 | 0.700 | 0.800 | 0.817 | 0.537 | 0.941 | 0.761 | 0.577 | 0.580 | 0.300 | 0.478 |
+| `d2934b8` places, zero tiers, wrapped lines | 0.969 | 0.874 | 0.700 | 0.800 | 0.817 | 0.537 | 0.941 | 0.765 | 0.576 | 0.584 | 0.300 | 0.478 |
+| `38cb2d3` the asked metric next to "High-Yield" | 0.969 | 0.874 | 0.700 | 0.812 | 0.817 | 0.537 | 0.941 | 0.765 | 0.576 | 0.584 | 0.300 | 0.478 |
+| `6bb321d` minimum to open, exclusions | 0.969 | 0.874 | 0.701 | 0.855 | 0.817 | 0.537 | 0.941 | 0.765 | 0.576 | 0.584 | 0.300 | 0.478 |
+| `1c0437f` **broad companion modules, weighed; review fixes** (final) | 0.969 | 0.874 | 0.744 | 0.865 | 0.817 | 0.542 | 0.941 | **0.785** | **0.628** | 0.584 | 0.300 | **0.569** |
 
-Commits that only touched tests or docs are left out, as are runs with identical scores (`b17b9fe`, `bdd8e5b`,
-`51ddee3`, `51bbd72`, `f576948`). Raw outputs are kept outside the repository: they contain snapshot text.
+Commits that only touched tests or docs are left out, as are runs with identical scores (`29e3150`, `ae6a79b`,
+`8a3609b`, `e408857`, `e8620e9`). Raw outputs are kept outside the repository: they contain snapshot text.
 
 What the table shows:
 
-- **The biggest single gain came from saying less.** `4aebe69` answers only the asked metric (APY, not the
+- **The biggest single gain came from saying less.** `13d2310` answers only the asked metric (APY, not the
   dividend rate printed beside it), only the asked tier, and only the asked product. legacy-dev rose from 0.434 to
   0.711 and the blind legacy-holdout from 0.184 to 0.550. The organizer's rule is that any old or wrong value
   zeroes a question, and listing neighbouring numbers kept hitting those traps.
-- **Some regressions stayed hidden at the time.** `921fb15` and `27b435a` lowered C-confirm (0.270 → 0.199), and
-  `27b435a` lowered A-dev too. Neither bank existed yet. This is why every change is now measured on every bank.
+- **Some regressions stayed hidden at the time.** `0bf2466` and `8d972e9` lowered C-confirm (0.270 → 0.199), and
+  `8d972e9` lowered A-dev too. Neither bank existed yet. This is why every change is now measured on every bank.
 - **A-confirm barely moved** (0.502 → 0.498). It is the one blind bank our changes didn't lift. Its synthetic part
   improved (0.545) while its original-corpus part didn't.
-- **C transferred poorly, until the merge.** By `d3b3c6f`, C-dev had risen from 0.407 to 0.840 but C-confirm only
+- **C transferred poorly, until the merge.** By `061bc84`, C-dev had risen from 0.407 to 0.840 but C-confirm only
   from 0.266 to 0.349. Merging the companion's handlers for C's page families took C-confirm to 0.468.
 - **Across all commits** the dev and blind changes correlate at r = 0.88, and 63% of the summed dev gain reached
   the blind banks. Scorer-derived rules and evidence-chosen merges transferred almost fully; fixes driven by
@@ -79,12 +79,12 @@ general rules: there is no code keyed to a question id, URL or expected value.
 
 **Day 1 (2026-10-21). From the kit to a rule-based system: public 0.957 → 0.969.**
 
-- `601b96c` First solution. It cleans pages, keeps every snapshot as a view of the site on that day, turns rate
+- `221c276` First solution. It cleans pages, keeps every snapshot as a view of the site on that day, turns rate
   tables into rows, finds sentences for everything else and detects conflicts.
-- `718dc24` An external code review found misread tiers, APR shown as APY, unlisted loan kinds answered with plain
+- `6ce0b07` An external code review found misread tiers, APR shown as APY, unlisted loan kinds answered with plain
   mortgage rows, and missing refusals. Each finding was fixed and pinned as a REVIEW case in
   `tests/run_checks.py`. Paraphrase sets A (tuned) and B (written fresh, 27/30 on its first run) were added.
-- `b17b9fe`, `921fb15`, `bdd8e5b`, `51ddee3`, `51bbd72`, `740de90`:
+- `29e3150`, `0bf2466`, `ae6a79b`, `8a3609b`, `e408857`, `695f149`:
   - strict one-line rate statements, which take the harness self-test to 1.0;
   - unlisted fees and products that only a stale page still shows are declined;
   - the newest wording of reworded boilerplate wins;
@@ -96,17 +96,17 @@ general rules: there is no code keyed to a question id, URL or expected value.
 
 - A separate session that never saw the code wrote 226 development questions and a 176-question holdout, each
   answer quoted from the snapshots.
-- `27b435a`, `4d79bb6`, `3e30fa4`, `f576948` were generic fixes for the dev failures: decline what the site doesn't
+- `8d972e9`, `93cf804`, `61c14d6`, `e8620e9` were generic fixes for the dev failures: decline what the site doesn't
   publish, whole multi-word names, branch hours from opening releases, abbreviations, reworded boilerplate
   conflicts.
-- Dev rose from 0.678 to 0.800 and the holdout from 0.679 to 0.711. `b1f04db` reported in NOTES that about a
+- Dev rose from 0.678 to 0.800 and the holdout from 0.679 to 0.711. `c3c31d4` reported in NOTES that about a
   quarter of the dev gain carried over to the holdout.
 
 **Day 2 afternoon. Scoreboard, mechanism suites, mutations.**
 
-- `3f4ac39` added `tests/scoreboard.py`, which runs every layer in one command. It also copied the tournament
+- `12a0bef` added `tests/scoreboard.py`, which runs every layer in one command. It also copied the tournament
   line's mechanism suites (program status, source planner) into `tests/knowledge_main/`.
-- `e13b455` came from the tournament line's source-order findings. A table that takes effect after the
+- `378807e` came from the tournament line's source-order findings. A table that takes effect after the
   download date waits until that date, and equally dated, equally trusted pages that disagree produce no invented
   winner. The commit added `MUTATIONS`: one rule and one changed input per test.
 
@@ -114,16 +114,16 @@ general rules: there is no code keyed to a question id, URL or expected value.
 
 - `tests/banks.py` was added. It runs every bank with the organizer harness, with each synthetic item on its own
   scenario snapshots, and blind banks run for aggregates only.
-- `4aebe69` came from the dominant failure on the banks: over-listing. Answers now give only the asked metric,
+- `13d2310` came from the dominant failure on the banks: over-listing. Answers now give only the asked metric,
   tier and product. Qualifiers named inside "not / except / other than" are ruled out. Compound questions with
   different kinds of parts are split.
-- `de7c4f2` added amounts and years written in words ("seven grand", "'26 car") and misspelled product names. It
+- `4a7f6d2` added amounts and years written in words ("seven grand", "'26 car") and misspelled product names. It
   also made answers deterministic: tie-breakers on every sort and rounded float sums. The bug it fixed was an
   answer that changed between runs because of set order; the `DETERMINISM` layer was added with it.
 
 **Day 2 night (2026-10-22/23). Bank-driven fixes under an anti-overfit gate.**
 
-- `239d78c` began with a C-dev regression traced to a normalisation side effect: "four-card" became "four card",
+- `357d758` began with a C-dev regression traced to a normalisation side effect: "four-card" became "four card",
   and "four" was read as an unknown card kind.
   - **Rejected and reverted inside this commit:** a "present-key" rule, which picked a typed answer's key word only
     from words that some typed text contains. It cost about 0.05 on C-confirm because it answered things the site
@@ -132,10 +132,10 @@ general rules: there is no code keyed to a question id, URL or expected value.
   - Also in this commit: a named product beats a bare family word; "personal and business cards" lists both; a
     balance's tier plus the top tier's threshold; "was X listed" against "does Dupaco offer X"; payment-channel
     fees.
-- `00f6859` absorbed the tournament line's history answers. A question naming two or more days side by side
+- `f372dea` absorbed the tournament line's history answers. A question naming two or more days side by side
   is answered as the site stood on each day. "Regular and jumbo" shows both. "Minimum" counts as an extreme only
   next to a rate word.
-- `2effed2` cover every asked part. Absorbed from the tournament line's finding that one heading-owned block
+- `9d92679` cover every asked part. Absorbed from the tournament line's finding that one heading-owned block
   should answer all of a multi-part question.
   - A text answer that leaves asked words uncovered adds up to two sentences holding them, from its own section,
     or from another section of the same page only when a sentence holds two missing parts.
@@ -144,11 +144,11 @@ general rules: there is no code keyed to a question id, URL or expected value.
   - **Rejected inside this commit:** three tightenings. A table row would answer alone; amount and rate words would
     never count as asked; covering sentences could not be table rows. Each one cost a blind bank about one item,
     so only the narrowest fix was kept: function words such as "not" never count as asked.
-- `7753542` added **paired controls**, after the tournament line's anti-overfit gate. Each rule learned from
+- `bae67ac` added **paired controls**, after the tournament line's anti-overfit gate. Each rule learned from
   a bank item gets questions in words no bank uses: an equivalent form must keep the answer, and a minimally
   changed form (another actor, qualifier, day or polarity) must change it. The first run exposed four rules bound to
   a bank's wording. They were made general, and every bank score stayed the same.
-- `d3b3c6f` absorbed the tournament line's Parent45e1 custody suites: 35 synthetic tests on made-up banks.
+- `061bc84` absorbed the tournament line's Parent45e1 custody suites: 35 synthetic tests on made-up banks.
   13 passed on arrival and 30 pass now. The general fixes they exposed:
   - effective dates in more wordings;
   - a product's own page beats a copy of its table embedded on another page;
@@ -163,7 +163,7 @@ general rules: there is no code keyed to a question id, URL or expected value.
 
   **Rejected:** a yes/no coverage guard. It declined seven correctly answered dev questions whose wording differs
   from the page's.
-- `5cf624a` kept the tournament line's request-evidence developer controls as a diagnostic (0/90 here,
+- `5cf362a` kept the tournament line's request-evidence developer controls as a diagnostic (0/90 here,
   22/90 for its own runtime).
 
 **Day 3 (2026-10-23). Absorbing what the companion does better, then merging it.**
@@ -179,7 +179,7 @@ owner's work). Analysis first, on the dev banks only:
 
 The commits:
 
-- `2500e91` reimplemented its winning mechanisms as general rules:
+- `62aa9cf` reimplemented its winning mechanisms as general rules:
   - comparisons answer both sides (several model years, purchase and refinance, the shortest and longest terms,
     two terms compared);
   - "which tier ..., and what is its APY" is one rate question;
@@ -190,17 +190,17 @@ The commits:
   Not taken: its credit-score guard, which declined an answerable question. Answer formats tuned to the bank
   authors were not taken either, because the organizer's tokens are plain numbers. Fourteen paired controls; the
   first run caught two more wording-bound rules.
-- `f43a470` **merged it.** `solution/companion/` holds its submission unchanged, and `kb_companion.py` uses its
+- `848491e` **merged it.** `solution/companion/` holds its submission unchanged, and `kb_companion.py` uses its
   answer only for text questions, and only when one of five services handlers answered: join routes, wallets,
   contact routes, policy corrections, offers. A guard keeps "museum-membership benefit" out of the join handler.
-- `ce21637` added three loans handlers on the same evidence: the card list, unpublished rates, homebuyer grants.
+- `700c18f` added three loans handlers on the same evidence: the card list, unpublished rates, homebuyer grants.
   Its mortgage, installment, card-fee and student handlers were mixed or worse, and stay out.
-- `eb0a5ca` made the two owner policies switchable and measured them. Declining a date before the first download:
+- `bf7d436` made the two owner policies switchable and measured them. Declining a date before the first download:
   C-confirm +0.056, km226 +0.020. Declining a true tie: no change. Defaults kept until the owner decides.
   Also added `docs/GENERALIZATION.md`.
-- `5f7e3f6` conflicts: a variant changed in its base product's table update joins that conflict (36 → 28 entries,
+- `e8700c5` conflicts: a variant changed in its base product's table update joins that conflict (36 → 28 entries,
   no gold conflict lost). Conflict F1: ours-dev .48 → .57, km226 .15 → .18, blind holdout .089 → .108.
-- `e957c52` came from A-dev and B-dev failures:
+- `ea418bc` came from A-dev and B-dev failures:
   - a multi-word name ("Positive Pay") restricts open questions to sections naming it as a phrase;
   - an eyebrow heading ("##### POSITIVE PAY" above "## Stop Fraud Before It Starts") stays in the heading path;
   - a capitalised verb starting a later sentence is not a name;
@@ -208,7 +208,7 @@ The commits:
   - the private-account guard fires only for lookups, not how-to questions.
 
   A-confirm moved for the first time (.498 → .506).
-- `7cdf25d` **the biggest data fix.** The cleaner cut every page at its "Handpicked for You" block, and product
+- `f32e35c` **the biggest data fix.** The cleaner cut every page at its "Handpicked for You" block, and product
   pages put their FAQ after it, so the savings, cash-management and other FAQs were never indexed. Now only the
   block goes. With them:
   - entities escaped twice are decoded;
@@ -219,7 +219,7 @@ The commits:
 
   Blind A-confirm .506 → .580, B-confirm .284 → .300. A second ranking rule (any section titled with a named phrase
   wins) was measured on the dev banks and dropped.
-- `196c068` came from km226's temporal items:
+- `d89ad9c` came from km226's temporal items:
   - "across all five snapshots" answers each download;
   - "most recent" is not "most";
   - "the newest model-year band" keeps that band;
@@ -229,7 +229,7 @@ The commits:
 
   km226 .675 → .700 (traps 6 → 4); every blind bank equal. The first version of the rate-sheet rule also applied
   to link questions and cost the stand-in set three source credits; it was narrowed to presence questions.
-- `0f89a2d`:
+- `d2934b8`:
   - a state only qualifies a place ("Galena, Illinois" is written "Galena, IL"). This was a regression since the
     first solution, found by reading an old commit's answer;
   - a zero-paying tier says where earning starts;
@@ -237,9 +237,9 @@ The commits:
   - smallest/largest redemption limits.
 
   Two broader versions were measured and narrowed: "amount" as a money word, and "earned" for "earned income".
-- `0f16e25`: "High-Yield Savings" names a product, so its "yield" doesn't ask for the APY; "exclude" and "omit" rule
+- `38cb2d3`: "High-Yield Savings" names a product, so its "yield" doesn't ask for the APY; "exclude" and "omit" rule
   metrics out. legacy-dev traps 20 → 15.
-- `2980092`:
+- `6bb321d`:
   - "the minimum to open" answers the table's Min. to Open column;
   - product names come from what is asked, not from what is excluded;
   - a named personal loan beats the mortgage word "conventional".
@@ -249,7 +249,7 @@ The commits:
 - **Fresh blind set** (2026-10-23, §3). A new author session wrote a set neither system had seen. Four variants
   were pre-registered and each was run once ([FRESH-PREREGISTRATION.md](FRESH-PREREGISTRATION.md)). By the rule
   fixed in advance, D (every companion handler module) replaced B (the eight evidence-chosen handlers).
-- `28e3d69` **the companion's broad modules, weighed; the review fixes**:
+- `1c0437f` **the companion's broad modules, weighed; the review fixes**:
   - *Refining D without the fresh set.* D's broad modules broke nine paired controls (routing FAQ, hours, branch
     status, cashier's check, museum, LPL). They now answer only open answer kinds, and never through the
     companion's facts module or the general part of its services module.

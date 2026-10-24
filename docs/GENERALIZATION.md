@@ -20,10 +20,10 @@ The transfer depends on what kind of change it was:
 
 | kind of change | commits | blind gain per unit of dev gain |
 |---|---|---:|
-| answer-policy rules from the scoring rules: answer only the asked metric and tier; cover every asked part | `4aebe69`, `2effed2` | 1.08, 0.82 |
-| mechanisms chosen by out-of-sample evidence: the companion's handlers that won outside its own tuning bank; its mechanisms reimplemented | `f43a470`, `ce21637`, `2500e91` | 1.09, 1.45, 1.12 |
-| fixes driven by individual failing dev items | `27b435a`, `3e30fa4`, `00f6859`, `239d78c` | 0.17, 0.19, 0.03, 0.33 |
-| one rule that hurt blind while dev was flat | `921fb15` | blind −0.014 |
+| answer-policy rules from the scoring rules: answer only the asked metric and tier; cover every asked part | `13d2310`, `9d92679` | 1.08, 0.82 |
+| mechanisms chosen by out-of-sample evidence: the companion's handlers that won outside its own tuning bank; its mechanisms reimplemented | `848491e`, `700c18f`, `62aa9cf` | 1.09, 1.45, 1.12 |
+| fixes driven by individual failing dev items | `8d972e9`, `61c14d6`, `f372dea`, `357d758` | 0.17, 0.19, 0.03, 0.33 |
+| one rule that hurt blind while dev was flat | `0bf2466` | blind −0.014 |
 
 The lesson: **a rule derived from the scorer or from evidence across authors transfers almost fully. A rule
 derived from one failing item mostly fits that item's wording.**
@@ -31,7 +31,7 @@ derived from one failing item mostly fits that item's wording.**
 **Templated banks inflate dev gains.** Some authors generate one question pattern for every product. legacy-dev
 asks "What is the published minimum to open X, regardless of ...?" for each savings product, and "the APY alone
 for the regular N-month certificate, excluding specials and IRAs" for each term. One fix then lifts many items:
-`2980092` raised legacy-dev by .044 and left its blind holdout equal. A dev gain is evidence of generalization
+`6bb321d` raised legacy-dev by .044 and left its blind holdout equal. A dev gain is evidence of generalization
 only when it comes from items that aren't copies of one template.
 
 ## 2. A system tuned on its own bank
