@@ -127,20 +127,26 @@ wrong claim appeared.
   overfit review.
 - The selected runtime gained a narrow fee fallback and normalised percentage display in conflicts.
 
-**Round 3: hardening, 27 recorded stages, most of them rejected.**
+**Round 3: hardening, 27 recorded stages, most of them rejected.** The scores are the 226-question development
+total, where the baseline is 0.9704.
 
-| track | result | decision |
-|---|---|---|
-| program status, five attempts | regressions (0.9524, 0.9512, 0.9579; development 0.9704 → 0.9555) | rejected: closing one trigger isn't complete identity or time handling |
-| source planner, three attempts | 0.9068 → 0.9117, below the floor | rejected |
-| two formatting stages | replay 0.977 and 0.972, with semantic P1/P2 findings | rejected despite the gain: unsafe aliases can earn lexical credit |
-| safe formatter | 0.9704, unchanged | not selected: safe, but no gain |
-| input ownership | a defect closed, no score change | adopted, later superseded |
-| conflict owner, two attempts | 0.9507 with two stale traps; 0.9643 | rejected |
-| deposit opening, two attempts | floors held, but five and then two P1 root causes | rejected |
-| Parent runtime + ownership graft `2d6b8d6e` | 0.9704 unchanged; 20/20 independent mutation controls | **selected** |
+| track | what each attempt tried | result | decision |
+|---|---|---|---|
+| program status, 2 iterations + programme cycles `0c76`, `0d00`, cycle 3 | status windows and dates, then complete source assertions and request dates | 0.9524, 0.9512, 0.9579 (two with a stale trap); cycle 3 closed an old trigger but lost real coverage | all rejected: closing one trigger isn't complete identity or time handling |
+| source planner 1, 2a, 2b | find the source first, then answer | 0.9068 → 0.9117 → 0.9117, below the floor | all rejected |
+| input ownership `30d89` | stop a caller's later changes from separating text from its source | 0.9704, unchanged | adopted, later superseded |
+| formatter, six cycles (`4fc4`, `a7a64`, `0e`, `98be`, `d7`, `fe64`) | earn the scorer's literal-format credit (ranges, labels) without changing meaning | the first two scored 0.977 and 0.972, but added wrong meanings (4 P1 + 1 P2, then 2 P1 + 1 P2); the next three each closed one gap and left another; `fe64` was safe | first five rejected; `fe64` not selected: safe, but no gain |
+| narrative `a720` | section, entity and request facets for multi-part answers | 0.9704, unchanged | approved within bounds by me, but its central gain wasn't shown, so not adopted |
+| six parallel follow-ups (Bootstrap, Main, Parent, Original 1–3) | each session fixed its own root causes: API time limits, conflict root causes, time and metric pairs, compound slots, entity protection, row-local purposes | on author C's 36 development questions, judged as complete answers, Parent reached 23 accepted / 4 rejected / 9 incomplete, against 14 / 5 / 17 for the reference | Parent chosen as the base |
+| deposit opening `ad1`, `30942dcb` | opening and earning minimums as separate slots | floors held, but five and then two P1 root causes | rejected; no third attempt |
+| conflict source audit + two entity experiments (`3314`, `4c8603`) | keep another organisation's figures out of conflicts | 0.9507 with two stale traps; 0.9643 | rejected |
+| Parent + ownership graft `2d6b8d6e` | only the input-ownership fix, grafted onto Parent | 0.9704 unchanged; public 0.969; self-test 1.0; 20/20 independent mutation controls; no new P0–P2 | **selected** (2026-10-22, inside a fixed delivery window) |
 
 - Author C wrote 75 questions (36 development, 36 confirmation, 3 quarantined) with 116 controls.
+- **The honest check on the selection.** On C's 36 confirmation questions, judged as complete answers, the
+  selected runtime scored 15 accepted / 1 rejected / 20 incomplete. The previous runtime scored 15 / 0 / 21. The net
+  change in complete correct answers was zero, with one more wrong claim. The development gain (23 against 14) did
+  not carry over to the confirmation half, and it was recorded that way rather than claimed as a gain.
 
 **Follow-up: new cases, outside solutions, a stricter gate.**
 
@@ -150,7 +156,12 @@ wrong claim appeared.
 - **Outside solutions.** 12 public implementations of the same assessment were pinned and measured in 39 suites.
   Public scores ranged from 0.33 to 0.969. None beat the selected runtime on public, self-test and an
   author-published 94-question set together. Their useful mechanisms were written up as ideas, not imported.
-- **Two candidates rejected.** A field-routing pilot and a closure attempt each introduced new P1 defects.
+- **Two candidates rejected.**
+  - A field-routing pilot (`a703`) raised the author-published 94-question set from 0.7515 to 0.7746 and kept all
+    271 original answers. It was still rejected for three new P1 defects: an unresolved card product, a negated
+    APR intent, and a third-party payroll provider borrowing the credit union's phone number.
+  - The single closure attempt (`5037`) lost both of the pilot's gains and added a new P1. No second closure was
+    allowed.
 - **A stricter gate.** Controls were frozen before any code: 90 developer and 90 held request-evidence controls,
   plus source-occurrence and typed-field controls. An anti-overfit harness ran each candidate once against the
   held set. Its first version (v2a) was rejected after an independent review found path-safety defects; the
