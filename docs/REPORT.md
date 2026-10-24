@@ -1,7 +1,8 @@
 # Report: a temporal knowledge system for the Dupaco site, and what two independent builds of it taught
 
 This report merges three earlier write-ups: the independent-test results, the study of the companion repository,
-and the bank results. It is written for reviewers of this assessment. Iteration details are in
+and the bank results. It is written for reviewers of this assessment. How I organised the agents and the decisions I made are in
+[PROCESS.md](PROCESS.md). Iteration details are in
 [ITERATIONS.md](ITERATIONS.md), the process in [METHODOLOGY.md](METHODOLOGY.md), the overfitting study in
 [GENERALIZATION.md](GENERALIZATION.md), and the system's rules in [../solution/NOTES.md](../solution/NOTES.md).
 
