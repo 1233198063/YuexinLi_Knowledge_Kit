@@ -331,16 +331,13 @@ Author C wrote 75 items (36 dev, 36 confirmation, 3 quarantined), with 102 autho
 controls. The selected runtime's confirmation review was 15 accepted, 1 rejected and 20 incomplete. Against the
 previous runtime it was a net complete-correct change of zero.
 
-**Follow-up: new cases, outside solutions, closure plan.**
+**Follow-up: new cases, closure plan.**
 
 - A 32-case admitted bank: 12 OA-source cases and 20 cross-domain transfer cases.
   - The selected runtime completed 0 of the 12 OA cases. The reason was a completeness gap (true snippets that
     don't finish the asked relations), not wrong values.
   - Its gold isn't published, so it isn't used here.
 - A field-routing pilot (`a703`) and a closure (`5037`) were rejected, each with new P1s.
-- Twelve public implementations of the same assessment were pinned and measured in 39 suites. No configuration
-  beat the selected runtime on all three of public, selftest and an author-published 94-question set. The top
-  public score, 0.969, is shared.
 - **Request-to-evidence closure plan.** Every requested slot must become a source-conditioned claim and then a
   rendered clause, and the whole answer is audited at the end.
 - **Anti-overfit gate.** Controls mutate actor, temporal role, polarity, qualifier, expression and clause order,

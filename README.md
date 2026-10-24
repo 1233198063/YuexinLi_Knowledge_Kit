@@ -7,50 +7,74 @@ don't know". The system also lists where the site contradicts itself.
 ## 1. How I orchestrated the agents
 
 I built it by orchestrating AI agents (Claude Opus 5.5 and 6.1 Sol). I gave each agent a role, set what it may see
-and what it must hand over, and kept the decisions. Most of the work then happened in exchanges between agents:
+and what it must hand over, and kept the decisions. Most of the work happened in exchanges between agents, with a
+reviewer agent at the centre.
+
+### The architecture
 
 ```
-                         me: roles, rules, decisions
-                                     |
-                         reviewer agent (coordinator)
-    discloses part of the questions, gives each solver a different hint, pulls their ideas together
-                                     |
-      +------------------+-----------+-----------+----------------------+
-      |                  |                       |                      |
-   solver A          solver B       ...      solver F        staged-line builder
-  (own hint)        (own hint)              (own hint)     (stops at each judgment call for me)
-      |                  |                       |                      |
-      +------- reviewer findings back to each solver; fixes come back with a test -------+
-                                     |
-    test-writing agents: independent, targeted, web-search, generalisation (some disclosed, the rest only scored)
+                               me: roles, rules, decisions
+                                            |
+                              reviewer agent (coordinator)
+            briefs every agent, checks what each hands over, decides what is disclosed
+                                            |
+        +-------------------+---------------+---------------+-----------------------+
+        |                   |                               |                       |
+  large-scale          defect-targeted                solver agents A-F      staged-line builder
+  question authors     question authors               one hint each          stops at each judgment
+  broad banks          tests for the defect                                  call for me
+                       the reviewer just found
+        |                   |                               |                       |
+        +---> banks and controls are checked and split by the reviewer:             |
+              one part disclosed to the solvers, the rest only ever scored          |
+                                            |                                       |
+              solvers' frozen work ---> reviewer findings ---> fix + a test that proves it
+                                            |
+              the reviewer compares the solvers on one protocol and combines what holds up
 ```
 
-- **The reviewer disclosed part of the questions.** Solvers saw a development part and could study every miss in
-  it. The rest stayed hidden and only produced a score, so no solver could tune to it.
-- **Different solvers got different hints.** Each was pointed at a different weakness: consistency, conflicts,
-  dates, multi-part answers, narrative completeness, evidence and uncertainty. They improved the same problem
-  from different sides.
-- **Findings went back and forth.** A reviewer audited each solver's frozen work and reported every defect with a
-  question that reproduces it. The solver fixed it and returned a test proving the fix.
-- **The reviewer pulled the ideas together.** It compared the solvers on one protocol, kept the parts that held
-  up, and rejected the rest, including changes that raised the score but added a wrong claim.
-- **Test-writing agents, each with a different purpose.** None of them saw the solvers' code.
+### How the reviewer talks to each kind of agent
+
+- **Large-scale question authors → reviewer.** They wrote broad banks from the snapshots. The reviewer checked each
+  bank before any solver saw it: sources, gold answers, ambiguous items. It sent faulty items back for correction
+  or set them aside, sealed the bank, and split it into a disclosed part and a hidden part.
+- **Reviewer → defect-targeted question authors.** When the reviewer found a weakness in the solvers' answers, it
+  briefed these authors on that defect. One example: answers that were true but left the asked relation
+  unfinished. They wrote controls for exactly that defect before any fix was coded. One half went to the solver,
+  and the reviewer kept the other half to judge the fix once.
+- **Reviewer → solvers.**
+  - It disclosed only part of the questions; the rest only produced a score, so no solver could tune to it.
+  - It gave each solver a different hint on where to improve: consistency, conflicts, dates, multi-part
+    answers, narrative completeness, evidence and uncertainty.
+- **Solvers ↔ reviewer.** Each solver handed over frozen work. A reviewer audited it and reported every defect with
+  a question that reproduces it. The solver returned a fix with a test proving it.
+- **Reviewer → me.** It compared the solvers on one protocol and proposed what to keep. It rejected changes that
+  raised the score but added a wrong claim. Once more questions stopped adding information, it moved the effort
+  from bigger banks to targeted controls and mutations.
+
+### The test-writing agents
+
+None of them saw the solvers' code.
 
 | agent | what it produced | why |
 |---|---|---|
-| independent authors | about 1,400 questions quoted from the snapshots, in several banks, each split into a disclosed part and a hidden part | measure accuracy without the solvers' bias |
-| targeted authors | questions aimed at one known trap each: stale pages, tiers, dates, negations, multi-part answers; synthetic sites with prompt injection, expired offers and removed pages | probe one weakness at a time |
-| web-search agents | similar material from outside: 12 public solutions to the same assessment, an author-published 94-question set, and transfer cases from other public corpora (statistics tables, privacy policies, temporal clauses) | test transfer beyond this site and its wording |
+| large-scale authors | about 1,400 questions quoted from the snapshots, in several banks, each split into a disclosed and a hidden part | measure accuracy without the solvers' bias |
+| defect-targeted authors | controls for the defect just found, written before the fix, with a held half; banks aimed at one known trap each (stale pages, tiers, dates, negations, multi-part answers); synthetic sites with prompt injection, expired offers and removed pages | probe one weakness at a time |
+| web-search agents | similar material from outside: transfer cases from other public corpora (statistics tables, privacy policies, temporal clauses), and new cases from the assignment's own sources | test transfer beyond this site and its wording |
 | generalisation agents | rewordings of every question; paired controls (an equivalent form and a minimally changed form); mutations of one input at a time; invented pages with renamed entities | catch rules that only work in one wording |
 | fresh-set author | 172 new questions at the very end, scored once per version | one last measurement nobody had tuned on |
 
-**One loop, end to end.** A reviewer agent reported that "What is the APY for a regular 6-month certificate, not
-Bright Savings?" returned Bright Savings' 2.25%. The report gave the code line and a control without "not Bright
-Savings". The builder fixed it, added both questions as paired controls, and showed the new test failing on the
-previous commit before committing.
+### One loop, end to end
 
-**My part.** I chose the roles and these rules, decided what each round disclosed, and carried findings between
-agents. I also made the calls agents shouldn't make alone:
+A reviewer agent reported that "What is the APY for a regular 6-month certificate, not Bright Savings?" returned
+Bright Savings' 2.25%. The report gave the code line and a control without "not Bright Savings". The builder fixed
+it, added both questions as paired controls, and showed the new test failing on the previous commit before
+committing.
+
+### My part
+
+I chose the roles and this architecture, decided what each round disclosed, and carried findings between agents. I
+also made the calls agents shouldn't make alone:
 
 - what "current" means;
 - when to say "I don't know";
@@ -58,8 +82,8 @@ agents. I also made the calls agents shouldn't make alone:
 - what to merge, and what to reject;
 - when to stop.
 
-The staged line took about 15.5 hours of active agent sessions and about 1.7 M output tokens (2026-10-18 to
-10-23). The other agents ran in parallel. Details are in [docs/PROCESS.md](docs/PROCESS.md).
+In total the agents ran for about 24 hours and used about 800 M tokens. Details are in
+[docs/PROCESS.md](docs/PROCESS.md).
 
 ## 2. What the agents produced
 

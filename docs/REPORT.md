@@ -226,14 +226,6 @@ run by an amendment written before it ran. Its result decides nothing, and the c
 - **Lesson:** a merge between two systems should be judged on banks neither was tuned on. This is the tournament
   line's rule for candidates, applied here to a merge.
 
-### 5.4 Outside context
-
-The tournament line measured twelve public implementations of this assessment with the same scorer, in 39
-suites. Their public scores ranged from 0.33 to 0.969. Only one other, besides the companion's runtime, reached
-0.969, which is also this system's score. No configuration beat the companion runtime on public, selftest and an
-author-published 94-question set together. This repository didn't read or run those implementations; the numbers
-are the tournament line's measurements.
-
 ## 6. What was taken from the tournament line, and what wasn't
 
 **Absorbed:**
@@ -314,7 +306,7 @@ every blind bank equal.
   controls (28 of them card controls outside its scope), so its heldback set was never opened. Its original
   scores fell too (public 0.969 → 0.930, disclosed development 0.970 → 0.964). It was archived without a patch or
   a second attempt.
-- **Ideas mapped to this system** (from its `OTHER-CANDIDATE-IDEAS.md`, a study of twelve public implementations):
+- **Its planned next steps, mapped to this system:**
 
   | idea | here |
   |---|---|

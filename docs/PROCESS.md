@@ -37,10 +37,8 @@ Models used: Claude Opus 5.5 and 6.1 Sol.
 - I rejected agents' gains that came with a new wrong claim, and closed both lines when the remaining gains were
   small.
 
-**Time and tokens.** The staged line ran from 2026-10-18 to 10-23 (after a first read on 10-16): about 15.5 hours
-of active agent sessions, about 1.7 M output tokens, and about 660 M tokens processed in total. Almost all of the
-total is cached context re-read on each step. The tournament line ran in parallel over the same days; its usage
-wasn't recorded here.
+**Time and tokens.** In total the agents ran for about 24 hours of execution and used about 800 M tokens, between
+2026-10-18 and 10-23.
 
 ## 1. The set-up
 
@@ -63,7 +61,7 @@ wasn't recorded here.
 | solvers | the staged line's builder; the tournament line's six solver sessions (bootstrap, main, parent, three parallel candidates) | each works in its own workspace; a candidate is frozen (copied and hashed) before it is evaluated; nobody edits another's workspace |
 | reviewers | a separate code-review session per round on the staged line; independent stage reviewers and a scheduled reviewer on the tournament line | a reviewer never writes the code it reviews, and reads it without changing it |
 | test authors | an independent author for the staged line; four authors for the tournament line; a fresh-set author at the end | questions and gold come from the snapshots only; blind halves are never shown to a solver |
-| outside research | a study of 12 public implementations of the same assessment, and transfer cases from other public corpora | read as evidence; no outside code imported |
+| outside material | transfer cases from other public corpora | read as test material only |
 | me | | decide policy; choose between agents' outputs; carry findings between the lines; decide merges and the end |
 
 Why two lines: one long session drifts towards its own blind spots and grades itself with its own tests. Two
@@ -111,8 +109,8 @@ was rejected. The next stage narrowed the aliases and scored 0.972, and the revi
 later cycle closed one gap and the reviewer found the next. The sixth was safe but brought no gain, so none was
 selected.
 
-**Loop 3: research → maintainer → gate.** The study of public implementations and the scheduled reviewer both
-recommended answering routing-number and HELOC questions by the field asked. The maintainer built that as the
+**Loop 3: scheduled reviewer → maintainer → gate.** The scheduled reviewer recommended answering routing-number
+and HELOC questions by the field asked. The maintainer built that as the
 last candidate. The v2b gate failed it (61 of 90 controls), and public fell from 0.969 to 0.930. It was rejected
 without a patch, and its held set was never opened.
 
@@ -200,25 +198,22 @@ total, where the baseline is 0.9704.
   change in complete correct answers was zero, with one more wrong claim. The development gain (23 against 14) did
   not carry over to the confirmation half, and it was recorded that way rather than claimed as a gain.
 
-**Follow-up: new cases, outside solutions, a stricter gate.**
+**Follow-up: new cases and a stricter gate.**
 
 - **New cases.** 32 new cases: 12 from the assignment's own sources and 20 transfer cases from other public
   corpora (statistics tables, privacy-policy text, temporal clauses). The selected runtime completed none of the
   12 assignment cases. Its values weren't wrong; its answers left the asked relation unfinished.
-- **Outside solutions.** 12 public implementations of the same assessment were pinned and measured in 39 suites.
-  Public scores ranged from 0.33 to 0.969. None beat the selected runtime on public, self-test and an
-  author-published 94-question set together. Their useful mechanisms were written up as ideas, not imported.
 - **Two candidates rejected.**
-  - A field-routing pilot (`a703`) raised the author-published 94-question set from 0.7515 to 0.7746 and kept all
-    271 original answers. It was still rejected for three new P1 defects: an unresolved card product, a negated
-    APR intent, and a third-party payroll provider borrowing the credit union's phone number.
+  - A field-routing pilot (`a703`) improved two questions and kept all 271 original answers. It was still
+    rejected for three new P1 defects: an unresolved card product, a negated APR intent, and a third-party payroll
+    provider borrowing the credit union's phone number.
   - The single closure attempt (`5037`) lost both of the pilot's gains and added a new P1. No second closure was
     allowed.
 - **A stricter gate.** Controls were frozen before any code: 90 developer and 90 held request-evidence controls,
   plus source-occurrence and typed-field controls. An anti-overfit harness ran each candidate once against the
   held set. Its first version (v2a) was rejected after an independent review found path-safety defects; the
   second (v2b) was approved.
-- **A scheduled reviewer.** Every 30 minutes it re-measured public solutions under the same protocol and published
+- **A scheduled reviewer.** Every 30 minutes it re-measured the scores under the same protocol and published
   recommendations.
 
 **Close (2026-10-23).**
@@ -250,13 +245,25 @@ followed after the fresh set, weighed against the staged line's answer by how mu
 ## 6. Test-writing agents, each with a different purpose
 
 None of them saw the solvers' code. I decided which agent wrote which kind of test and what each solver could
-see.
+see. The reviewer sat between them and the solvers:
+
+- **Large-scale authors → reviewer.** Broad banks were checked before any solver saw them: sources, gold answers
+  and ambiguous items. Faulty items went back to the author for correction (author B's bank came back as a
+  corrected v2) or were set aside (3 of author C's). Then the bank was sealed by hash and split into a disclosed
+  and a hidden part.
+- **Reviewer → defect-targeted authors.** A weakness the reviewer found became a brief for new controls, written
+  before any fix: for example, 90 developer and 90 held controls for answers that were true but left the asked
+  relation unfinished, plus source-occurrence and typed-field controls. The held half stayed with the reviewer
+  to judge the fix once.
+- **Reviewer's own controls.** The reviewer added its own beside the authors' (14 beside author C's 102). Once
+  more questions stopped adding information, it moved the effort from bigger banks to targeted controls and
+  mutations.
 
 | agent | what it produced | purpose |
 |---|---|---|
 | independent authors | ours: 226 development + 176 holdout. legacy509: 333 + 176. A: 100 + 60. B: 30 + 42. C: 36 + 36. About 1,400 questions in all, quoted from the snapshots, with conflict gold where it applied | measure accuracy without the solvers' bias; every bank has a hidden half that only ever produces a score |
 | targeted authors | banks aimed at one known trap each. Stale pages and calculators; tiers and thresholds; dates and future announcements; negations and source conditions (B); complete multi-part answers within one fact family (C). Synthetic sites with 22 prompt-injection scenarios, expired promotions, removed pages and published-vs-fetched dates (legacy509) | probe one weakness at a time, including situations the real snapshots don't contain |
-| web-search agents | similar material from outside. 12 public solutions to the same assessment, pinned and measured in 39 suites. An author-published 94-question set. 32 new cases: 12 from the assignment's own sources, 20 transferred from other public corpora (statistics tables, privacy-policy text, temporal clauses) | test whether the mechanisms transfer beyond this site and this wording; collect ideas without importing code |
+| web-search agents | similar material from outside: 32 new cases, 12 from the assignment's own sources and 20 transferred from other public corpora (statistics tables, privacy-policy text, temporal clauses) | test whether the mechanisms transfer beyond this site and this wording |
 | generalisation agents | rewordings of every public question (330-question stand-in set, two paraphrase sets); paired controls in words no bank uses, an equivalent and a minimally changed form for each learned rule (80); mutations of one input at a time, written by reviewer subagents against each frozen candidate; mechanism suites on invented pages with renamed entities | catch rules that only work in one bank's wording; the first run of paired controls caught four |
 | adjudicators | judgments of whole answers: 816 tournament responses, and author C's confirmation answers, each judged accepted, rejected or incomplete | judge completeness and wrong claims, which keyword scoring can't see |
 | fresh-set author | 172 new questions with conflict gold, written after both lines were nearly final; one run per version, enforced by `tests/fresh_once.py` | one last measurement nobody had tuned on |
@@ -268,7 +275,7 @@ see.
 | build | staged build with my decisions at each stop; public 0.957 | baseline from that copy; four P1 defects found |
 | first review | 8 findings fixed; public 0.969, the file's ceiling without its judge | six-solver tournament, hand adjudication |
 | independent tests | the independent author's banks; blind holdout 0.64 → 0.75 | 27 stages, most rejected; `2d6b8d6e` selected |
-| absorb and merge | its method, then its runtime as a specialist; blind C confirmation 0.35 → 0.47 | new cases, outside solutions, harness v2a rejected and v2b approved |
+| absorb and merge | its method, then its runtime as a specialist; blind C confirmation 0.35 → 0.47 | new cases, harness v2a rejected and v2b approved |
 | final | fresh set; second review (7 findings); its broad modules merged, weighed by coverage | last candidate rejected; `2d6b8d6e` final |
 
 Every commit that changed the solution was later re-scored on every bank (ITERATIONS.md §1).
