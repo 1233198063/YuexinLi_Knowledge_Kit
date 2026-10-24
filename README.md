@@ -22,7 +22,7 @@ and what it must hand over, and kept the decisions. Most of the work then happen
       |                  |                       |                      |
       +------- reviewer findings back to each solver; fixes come back with a test -------+
                                      |
-       question-author agents: some questions disclosed, the rest only ever scored
+    test-writing agents: independent, targeted, web-search, generalisation (some disclosed, the rest only scored)
 ```
 
 - **The reviewer disclosed part of the questions.** Solvers saw a development part and could study every miss in
@@ -34,8 +34,15 @@ and what it must hand over, and kept the decisions. Most of the work then happen
   question that reproduces it. The solver fixed it and returned a test proving the fix.
 - **The reviewer pulled the ideas together.** It compared the solvers on one protocol, kept the parts that held
   up, and rejected the rest, including changes that raised the score but added a wrong claim.
-- **Question-author agents never saw any code.** They wrote about 1,400 questions from the snapshots. A fresh set
-  of 172 came last.
+- **Test-writing agents, each with a different purpose.** None of them saw the solvers' code.
+
+| agent | what it produced | why |
+|---|---|---|
+| independent authors | about 1,400 questions quoted from the snapshots, in several banks, each split into a disclosed part and a hidden part | measure accuracy without the solvers' bias |
+| targeted authors | questions aimed at one known trap each: stale pages, tiers, dates, negations, multi-part answers; synthetic sites with prompt injection, expired offers and removed pages | probe one weakness at a time |
+| web-search agents | similar material from outside: 12 public solutions to the same assessment, an author-published 94-question set, and transfer cases from other public corpora (statistics tables, privacy policies, temporal clauses) | test transfer beyond this site and its wording |
+| generalisation agents | rewordings of every question; paired controls (an equivalent form and a minimally changed form); mutations of one input at a time; invented pages with renamed entities | catch rules that only work in one wording |
+| fresh-set author | 172 new questions at the very end, scored once per version | one last measurement nobody had tuned on |
 
 **One loop, end to end.** A reviewer agent reported that "What is the APY for a regular 6-month certificate, not
 Bright Savings?" returned Bright Savings' 2.25%. The report gave the code line and a control without "not Bright

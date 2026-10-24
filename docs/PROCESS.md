@@ -247,17 +247,19 @@ followed after the fresh set, weighed against the staged line's answer by how mu
 - **Me as the relay.** I carried findings between the lines ("the other side has updated, take a look"). The lines
   learned from each other without either editing the other's workspace.
 
-## 6. Agents that write questions and look for similar material
+## 6. Test-writing agents, each with a different purpose
 
-- **Independent authors.**
-  - For the staged line: 226 development and 176 holdout questions, from an author session with no access to the
-    code.
-  - For the tournament line: legacy509 (333 / 176), A (100 / 60), B (30 / 42) and C (36 / 36).
-  - About 1,400 items in all, each bank split into a development half and a blind half.
-- **A fresh set at the end.** 172 questions with conflict gold, written after both lines were nearly final.
-- **Similar material from outside.** The 12 public implementations and the 32 transfer and new cases (§4).
-- **Mechanism suites.** Invented pages, one rule each (future-effective tables, ties, removed pages, source
-  order). Several run here (`tests/knowledge_main/`).
+None of them saw the solvers' code. I decided which agent wrote which kind of test and what each solver could
+see.
+
+| agent | what it produced | purpose |
+|---|---|---|
+| independent authors | ours: 226 development + 176 holdout. legacy509: 333 + 176. A: 100 + 60. B: 30 + 42. C: 36 + 36. About 1,400 questions in all, quoted from the snapshots, with conflict gold where it applied | measure accuracy without the solvers' bias; every bank has a hidden half that only ever produces a score |
+| targeted authors | banks aimed at one known trap each. Stale pages and calculators; tiers and thresholds; dates and future announcements; negations and source conditions (B); complete multi-part answers within one fact family (C). Synthetic sites with 22 prompt-injection scenarios, expired promotions, removed pages and published-vs-fetched dates (legacy509) | probe one weakness at a time, including situations the real snapshots don't contain |
+| web-search agents | similar material from outside. 12 public solutions to the same assessment, pinned and measured in 39 suites. An author-published 94-question set. 32 new cases: 12 from the assignment's own sources, 20 transferred from other public corpora (statistics tables, privacy-policy text, temporal clauses) | test whether the mechanisms transfer beyond this site and this wording; collect ideas without importing code |
+| generalisation agents | rewordings of every public question (330-question stand-in set, two paraphrase sets); paired controls in words no bank uses, an equivalent and a minimally changed form for each learned rule (80); mutations of one input at a time, written by reviewer subagents against each frozen candidate; mechanism suites on invented pages with renamed entities | catch rules that only work in one bank's wording; the first run of paired controls caught four |
+| adjudicators | judgments of whole answers: 816 tournament responses, and author C's confirmation answers, each judged accepted, rejected or incomplete | judge completeness and wrong claims, which keyword scoring can't see |
+| fresh-set author | 172 new questions with conflict gold, written after both lines were nearly final; one run per version, enforced by `tests/fresh_once.py` | one last measurement nobody had tuned on |
 
 ## 7. The rounds side by side
 
